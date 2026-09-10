@@ -333,7 +333,6 @@ export function repetitionResult(timeline) {
   }
   return { winner: null, reason: "repetition" };
 }
-// Explicit amateur 27-point declaration variant, documented in the in-game rules.
 export function declaration(p, side = p.turn) {
   const king = p.board.findIndex((a) => a?.side === side && a.type === "K");
   let count = 0,

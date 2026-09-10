@@ -253,8 +253,7 @@ function renderRecord() {
   if (!game.history.length) {
     const li = document.createElement("li");
     li.className = "empty-record";
-    li.innerHTML =
-      "<span>—</span><p>每一步，都值得記住。<br><small>落下第一子，開始你的故事。</small></p>";
+    li.innerHTML = "<span>—</span><p>尚無指手</p>";
     list.append(li);
   } else {
     game.history.forEach((h, i) => {
@@ -311,8 +310,8 @@ function render(syncBoard = true) {
     );
     $("#note-" + side).textContent =
       config.mode === "ai" && side !== config.humanSide
-        ? ["", "入門電腦", "初級電腦", "中級電腦"][config.level]
-        : "今天，也請多指教";
+        ? "CPU · " + ["", "入門", "初級", "中級"][config.level]
+        : "";
     $("#player-state-" + side).textContent = game.result
       ? "對局已結束"
       : p.turn === side
@@ -336,8 +335,7 @@ function render(syncBoard = true) {
       ? ["", "入門電腦", "初級電腦", "中級電腦"][config.level]
       : "雙人對局") +
     " · " +
-    (config.main ? `${config.main / 60} 分 + ${config.byoyomi} 秒` : "無限時") +
-    " · 休閒對局";
+    (config.main ? `${config.main / 60} 分 + ${config.byoyomi} 秒` : "無限時");
   $("#ply-count").textContent =
     `第 ${(replayIndex ?? game.history.length) + 1} 手`;
   $("#pause-overlay").hidden = !paused || replayIndex !== null || !!game.result;
@@ -346,13 +344,11 @@ function render(syncBoard = true) {
   const sideWord = p.turn ? "後手" : "先手";
   if (game.result) status(resultTitle(), reasonText(game.result.reason), "終");
   else if (replayIndex !== null)
-    status(`棋譜回顧 · 第 ${replayIndex} 手`, "按「返回對局」繼續下棋。", "譜");
-  else if (paused) status("棋局已暫停", "按「繼續對局」回到棋盤。", "Ⅱ");
-  else if (animating) status("指尖落子中", "棋子落定後，換另一方思考。", "手");
-  else if (aiThinking)
-    status(`${profiles[p.turn].name}正在思考`, "電腦正在尋找合法指手。", "…");
-  else if (hintThinking)
-    status("正在尋找提示", "稍候會在棋盤標示建議的一手。", "✧");
+    status(`棋譜回顧 · 第 ${replayIndex} 手`, "", "譜");
+  else if (paused) status("棋局已暫停", "", "Ⅱ");
+  else if (animating) status("落子中", "", "手");
+  else if (aiThinking) status(`${profiles[p.turn].name}思考中`, "", "…");
+  else if (hintThinking) status("尋找提示中", "", "✧");
   else if (selection) {
     const a = selection.drop
       ? { type: selection.drop }
@@ -368,21 +364,15 @@ function render(syncBoard = true) {
     ).size;
     status(
       `已選取${NAMES[(a.promoted ? "+" : "") + a.type]}${selection.drop ? " · 打入" : ""}`,
-      count
-        ? `共有 ${count} 個合法位置，請選擇目的格。`
-        : "這枚棋子目前沒有合法走法。",
+      count ? `可走 ${count} 格` : "無法移動",
       LABELS[a.type],
     );
   } else if (inCheck(p))
-    status(
-      `${sideWord}被王手！`,
-      "請移動玉、取下攻擊者，或用棋子阻擋王手。",
-      "王",
-    );
+    status(`${sideWord}被王手！`, "請應將", "王");
   else
     status(
-      `${sideWord} · ${profiles[p.turn].name}落子`,
-      "點選棋子，再選擇綠色提示的格子。",
+      `${sideWord} · ${profiles[p.turn].name}`,
+      "",
       p.turn ? "☖" : "☗",
     );
   for (const b of board.buttons) b.disabled = !canPlay();
@@ -403,7 +393,7 @@ function renderClocks() {
   for (const side of [0, 1]) {
     $("#clock-" + side).textContent = clock.display(side, game.position.turn);
     $("#clock-note-" + side).textContent = clock.unlimited
-      ? "時間無限制"
+      ? ""
       : clock.remaining[side] > 0
         ? `讀秒 ${config.byoyomi} 秒`
         : "正在讀秒";
@@ -527,7 +517,7 @@ function onSquare(i) {
         $("#normal-symbol").textContent = LABELS[piece.type];
         $("#promoted-symbol").textContent = LABELS["+" + piece.type];
         $("#promote-description").textContent =
-          `${NAMES[piece.type]}可升變為${NAMES["+" + piece.type]}。升變後，走法會改變。`;
+          `${NAMES[piece.type]} → ${NAMES["+" + piece.type]}`;
         $("#promote-dialog").showModal();
       } else executeMove(choices[0]);
       return;
@@ -856,7 +846,7 @@ function applyPreferences() {
   document.body.dataset.theme = prefs.theme;
   board.setTheme(prefs.theme);
   board.setShadows(prefs.shadows);
-  $$("[data-theme]").forEach((b) =>
+  $$(".themes [data-theme]").forEach((b) =>
     b.classList.toggle("selected", b.dataset.theme === prefs.theme),
   );
   $("#sound-toggle").textContent = prefs.sound ? "♫ 音效開" : "♫ 音效關";
@@ -864,7 +854,7 @@ function applyPreferences() {
   $("#shadow-toggle").textContent = prefs.shadows ? "◐ 陰影開" : "◐ 陰影關";
   $("#shadow-toggle").setAttribute("aria-pressed", prefs.shadows);
 }
-$$("[data-theme]").forEach(
+$$(".themes [data-theme]").forEach(
   (b) =>
     (b.onclick = () => {
       prefs.theme = b.dataset.theme;

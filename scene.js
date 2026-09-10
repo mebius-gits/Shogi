@@ -167,7 +167,7 @@ export class BoardScene {
     this.renderer.domElement.setAttribute("aria-hidden", "true");
     this.camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
     this.camera.position.set(0, 20, 7.8);
-    this.camera.lookAt(0, 0.4, 0); // Fixed slight tilt toward the player's seat.
+    this.camera.lookAt(0, 0.4, 0);
     this.ambient = new THREE.HemisphereLight("#fff4e1", "#817457", 2.0);
     this.scene.add(this.ambient);
     this.sun = new THREE.DirectionalLight("#ffe6bf", 2.65);

@@ -4,28 +4,30 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width,initial-scale=1" name="viewport" />
-    <meta content="#f6f3ec" name="theme-color" />
+    <meta content="#121726" name="theme-color" />
     <title>櫻間 Shogi — 一局入心</title>
     <link href="style.css" rel="stylesheet" />
     <link
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23717d66' d='M20 2 33 10 38 37H2L7 10Z'/%3E%3Ctext x='20' y='29' text-anchor='middle' fill='white' font-size='24'%3E将%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath fill='%23b8342a' d='M20 2 33 10 38 37H2L7 10Z'/%3E%3Ctext x='20' y='29' text-anchor='middle' fill='white' font-size='24'%3E将%3C/text%3E%3C/svg%3E"
       rel="icon"
     />
     <script type="importmap">
       { "imports": { "three": "./vendor/three.module.js" } }
     </script>
-    <link href="pages.css" rel="stylesheet" />
   </head>
   <body>
     <header class="header">
       <a class="brand" href="#/menu"
         ><span class="seal">将</span
-        ><span>櫻間<small>SAKURAMA SHOGI</small></span></a
+        ><span class="brand-name">櫻間<small>SAKURAMA SHOGI</small></span></a
       >
-      <div class="header-actions">
-        <button data-page-link="record">棋譜</button
-        ><button class="menu-open" data-page-link="menu">☰ 選單</button>
-      </div>
+      <nav class="header-actions">
+        <button class="nav-item" data-page-link="record">
+          <b>棋譜</b><small>RECORD</small></button
+        ><button class="nav-item menu-open" data-page-link="menu">
+          <i class="burger"></i><small>MENU</small>
+        </button>
+      </nav>
     </header>
     <main class="app-pages">
       <section
@@ -35,34 +37,21 @@
         id="play-page"
       >
         <div class="board-toolbar">
-          <div>
-            <span class="tiny-piece">玉</span
-            ><span id="game-type">平手 · 人機對局</span>
-          </div>
-          <div>
-            <span id="ply-count">第 1 手</span>
-          </div>
+          <span class="match-tag" id="game-type">平手 · 人機對局</span>
+          <span class="ply" id="ply-count">第 1 手</span>
         </div>
         <div class="play-layout">
           <section class="player-strip player-card" id="player-1">
-            <div class="card-top">
-              <span class="side-label">☖ 後手 <i>GOTE</i></span>
-            </div>
+            <span class="side-label">後手<i>GOTE</i></span>
             <div class="player-identity">
               <div class="avatar" id="avatar-1"></div>
-              <div>
-                <h2 id="name-1">花咲 小春</h2>
-                <span class="player-note" id="note-1">你的將棋夥伴</span>
-              </div>
+              <h2 id="name-1">花咲 小春</h2>
+              <span class="player-note" id="note-1"></span>
             </div>
             <div class="clock-line">
-              <span>持ち時間<small id="clock-note-1">時間無限制</small></span
-              ><strong id="clock-1">∞</strong>
+              <strong id="clock-1">∞</strong><small id="clock-note-1"></small>
             </div>
-            <div class="player-footer">
-              <span id="player-state-1">靜候下一手</span
-              ><span class="turn-lamp"></span>
-            </div>
+            <div class="player-footer" id="player-state-1"></div>
           </section>
           <div class="play-center">
             <div class="board-stage" id="board-stage">
@@ -71,76 +60,59 @@
                   <div class="section-label">
                     <span>後手持駒</span><b id="hand-count-1">0 枚</b>
                   </div>
-                  <div
-                    aria-label="後手持駒"
-                    class="hand-tray"
-                    id="hand-1"
-                  ></div>
+                  <div class="hand-tray" id="hand-1"></div>
                 </section>
               </div>
               <div id="board-canvas">
                 <div id="loading">
                   <span class="loading-seal">将</span>
-                  <p>正在準備棋盤…</p>
+                  <p>LOADING</p>
                 </div>
               </div>
               <div hidden="" id="pause-overlay">
                 <span class="overlay-flower">✿</span>
+                <span class="eyebrow">PAUSE</span>
                 <h2>稍作歇息</h2>
-                <p>茶還溫著，棋局也在。</p>
-                <button class="primary" id="resume">繼續對局 →</button>
+                <button class="primary" id="resume">繼續對局</button>
               </div>
               <div class="replay-badge" hidden="" id="replay-badge">
                 棋譜回顧 · <span></span>
               </div>
-
               <div aria-label="先手持駒" class="capture-dock capture-bottom">
                 <section class="capture-rail rail-0">
                   <div class="section-label">
                     <span>先手持駒</span><b id="hand-count-0">0 枚</b>
                   </div>
-                  <div
-                    aria-label="先手持駒"
-                    class="hand-tray"
-                    id="hand-0"
-                  ></div>
+                  <div class="hand-tray" id="hand-0"></div>
                 </section>
               </div>
             </div>
           </div>
           <section class="player-strip player-card" id="player-0">
-            <div class="card-top">
-              <span class="side-label">☗ 先手 <i>SENTE</i></span>
-            </div>
+            <span class="side-label">先手<i>SENTE</i></span>
             <div class="player-identity">
               <div class="avatar" id="avatar-0"></div>
-              <div>
-                <h2 id="name-0">旅人</h2>
-                <span class="player-note" id="note-0">今天，也請多指教</span>
-              </div>
+              <h2 id="name-0">旅人</h2>
+              <span class="player-note" id="note-0"></span>
             </div>
             <div class="clock-line">
-              <span>持ち時間<small id="clock-note-0">時間無限制</small></span
-              ><strong id="clock-0">∞</strong>
+              <strong id="clock-0">∞</strong><small id="clock-note-0"></small>
             </div>
-            <div class="player-footer">
-              <span id="player-state-0">輪到你落子</span
-              ><span class="turn-lamp"></span>
-            </div>
+            <div class="player-footer" id="player-state-0"></div>
           </section>
         </div>
         <div aria-live="polite" class="board-status" role="status">
           <span id="status-symbol">☗</span>
           <div>
-            <strong id="status-title">輪到你落子</strong>
-            <p id="status-detail">點選棋子，再選擇綠色提示的格子。</p>
+            <strong id="status-title"></strong>
+            <p id="status-detail"></p>
           </div>
           <span hidden="" id="thinking"><i></i><i></i><i></i></span>
         </div>
         <div class="board-actions">
-          <button id="undo" title="休閒對局允許悔棋">↶ <span>悔棋</span></button
-          ><button id="hint">✧ <span>提示</span></button
-          ><button id="pause">Ⅱ <span>暫停</span></button>
+          <button id="undo"><i>↶</i><span>悔棋</span></button
+          ><button id="hint"><i>✧</i><span>提示</span></button
+          ><button id="pause"><i>Ⅱ</i><span>暫停</span></button>
         </div>
         <div hidden="" id="review-toolbar">
           <div class="replay-controls">
@@ -150,102 +122,110 @@
             ><button aria-label="下一手" id="replay-next">›</button
             ><button aria-label="回到目前棋局" id="replay-end">›|</button>
           </div>
-          <button hidden="" id="return-live">返回對局 →</button>
+          <button class="primary" hidden="" id="return-live">返回對局</button>
         </div>
       </section>
-      <section class="route-page" data-page="menu" hidden="" id="menu-page">
-        <button class="page-back" data-page-link="play">← 返回棋盤</button>
-        <div class="page-title">
-          <span class="eyebrow">SAKURAMA SHOGI</span>
-          <h1>一局，慢慢來。</h1>
-          <p id="mode-caption"></p>
-          <small id="difficulty-caption"></small>
-        </div>
-        <button class="primary full" id="continue-game">繼續對局 →</button>
-        <nav class="menu-grid">
-          <button id="new-game">
-            <span>01</span><b>開始新局</b
-            ><small>模式、棋力與時間</small></button
-          ><button data-page-link="players">
-            <span>02</span><b>玩家資料</b><small>自訂頭像與名稱</small></button
-          ><button id="settings-open">
-            <span>03</span><b>棋室設定</b
-            ><small>光線、音效與手部動畫</small></button
-          ><button data-page-link="record">
-            <span>04</span><b>本局棋譜</b><small>逐手回顧與下載</small></button
-          ><button id="rules-open">
-            <span>05</span><b>玩法指南</b><small>走法、升變與打入</small>
-          </button>
-        </nav>
-        <div class="session-actions">
-          <span>本局操作</span
-          ><button id="declare">♔ <span>入玉宣言</span></button
-          ><button class="danger" id="resign">⚑ <span>投了</span></button>
-        </div>
-        <p class="save-caption" id="save-status">本機自動存檔</p>
-      </section>
+
       <section
-        class="route-page"
+        class="route-page title-screen"
+        data-page="menu"
+        hidden=""
+        id="menu-page"
+      >
+        <button class="page-back" data-page-link="play">返回棋盤</button>
+        <div class="title-block">
+          <span class="eyebrow">SAKURAMA SHOGI</span>
+          <h1>一局入心</h1>
+          <div class="title-meta">
+            <p id="mode-caption"></p>
+            <small id="difficulty-caption"></small>
+          </div>
+        </div>
+        <div class="command">
+          <button class="primary full" id="continue-game">
+            繼續對局<small>CONTINUE</small>
+          </button>
+          <nav class="menu-grid">
+            <button id="new-game">
+              <span>01</span><b>開始新局</b><small>NEW GAME</small></button
+            ><button data-page-link="players">
+              <span>02</span><b>玩家資料</b><small>PLAYERS</small></button
+            ><button id="settings-open">
+              <span>03</span><b>棋室設定</b><small>SETTINGS</small></button
+            ><button data-page-link="record">
+              <span>04</span><b>本局棋譜</b><small>RECORD</small></button
+            ><button id="rules-open">
+              <span>05</span><b>玩法指南</b><small>HOW TO PLAY</small>
+            </button>
+          </nav>
+          <div class="session-actions">
+            <button id="declare"><i>♔</i><span>入玉宣言</span></button
+            ><button class="danger" id="resign"><i>⚑</i><span>投了</span></button>
+            <p class="save-caption" id="save-status">本機自動存檔</p>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="route-page panel-page"
         data-page="players"
         hidden=""
         id="players-page"
       >
-        <button class="page-back" data-page-link="menu">← 返回選單</button>
+        <button class="page-back" data-page-link="menu">返回選單</button>
         <div class="page-title">
           <span class="eyebrow">PLAYERS</span>
-          <h1>以你的樣子，入座。</h1>
-          <p>選擇一方，編輯頭像與名稱。</p>
+          <h1>玩家資料</h1>
         </div>
         <div class="profile-choices">
           <button class="profile-choice" data-profile="0">
             <div class="avatar" id="preview-avatar-0"></div>
-            <span><small>先手</small><b id="preview-name-0"></b></span
-            ><i>編輯 →</i></button
+            <span><small>先手 · SENTE</small><b id="preview-name-0"></b></span
+            ><i>EDIT</i></button
           ><button class="profile-choice" data-profile="1">
             <div class="avatar" id="preview-avatar-1"></div>
-            <span><small>後手</small><b id="preview-name-1"></b></span
-            ><i>編輯 →</i>
+            <span><small>後手 · GOTE</small><b id="preview-name-1"></b></span
+            ><i>EDIT</i>
           </button>
         </div>
       </section>
-      <section class="route-page" data-page="record" hidden="" id="record-page">
-        <button class="page-back" data-page-link="menu">← 返回選單</button>
+
+      <section
+        class="route-page panel-page"
+        data-page="record"
+        hidden=""
+        id="record-page"
+      >
+        <button class="page-back" data-page-link="menu">返回選單</button>
         <div class="page-title">
-          <span class="eyebrow">GAME RECORD</span>
-          <h1>回看每一手。</h1>
-          <p>選擇一手，在棋盤重看當時的局面。</p>
+          <span class="eyebrow">RECORD</span>
+          <h1>本局棋譜</h1>
         </div>
-        <button class="secondary" id="review-initial">從初始局面回顧</button>
+        <div class="record-tools">
+          <button class="secondary" id="review-initial">從初始局面回顧</button
+          ><button class="secondary" id="export-record">下載 KIF</button>
+        </div>
         <section class="record-card">
-          <div class="section-label">
-            <span>棋譜</span><small>GAME RECORD</small
-            ><button aria-label="下載棋譜" id="export-record" title="下載棋譜">
-              ↓
-            </button>
-          </div>
           <div class="record-header">
             <span>手數</span><span>指手</span><span>用時</span>
           </div>
           <ol id="move-list">
-            <li class="empty-record">
-              <span>—</span>
-              <p>
-                每一步，都值得記住。<br /><small
-                  >落下第一子，開始你的故事。</small
-                >
-              </p>
-            </li>
+            <li class="empty-record"><span>—</span><p>尚無指手</p></li>
           </ol>
         </section>
       </section>
-      <section class="route-page" data-page="new" hidden="" id="new-page">
-        <button class="page-back" data-page-link="menu">← 返回選單</button>
+
+      <section
+        class="route-page panel-page"
+        data-page="new"
+        hidden=""
+        id="new-page"
+      >
+        <button class="page-back" data-page-link="menu">返回選單</button>
         <form id="new-form">
-          <div class="dialog-heading">
-            <div>
-              <span class="eyebrow">A NEW GAME</span>
-              <h2>準備好，下一局。</h2>
-            </div>
+          <div class="page-title">
+            <span class="eyebrow">NEW GAME</span>
+            <h1>開始新局</h1>
           </div>
           <label class="field"
             >對局模式<select id="new-mode">
@@ -255,9 +235,9 @@
           >
           <div class="field-row">
             <label class="field"
-              >你的先後手<select id="new-side">
-                <option value="0">先手 · 先行</option>
-                <option value="1">後手 · 後行</option>
+              >先後手<select id="new-side">
+                <option value="0">先手</option>
+                <option value="1">後手</option>
               </select></label
             ><label class="field"
               >電腦棋力<select id="new-level">
@@ -269,61 +249,55 @@
           </div>
           <label class="field"
             >對局用時<select id="new-time">
-              <option value="0">無限時 · 慢慢思考</option>
-              <option value="300:10">5 分鐘 + 每手 10 秒讀秒</option>
-              <option value="600:30">10 分鐘 + 每手 30 秒讀秒</option>
+              <option value="0">無限時</option>
+              <option value="300:10">5 分 + 讀秒 10 秒</option>
+              <option value="600:30">10 分 + 讀秒 30 秒</option>
             </select></label
           >
-          <p class="field-note">
-            休閒對局可使用提示、悔棋及暫停。開始新局會取代目前的自動存檔，可先下載棋譜。
-          </p>
-          <button class="primary full" type="submit">開始對局 →</button>
+          <p class="field-note">開始新局會覆蓋目前的存檔。</p>
+          <button class="primary full" type="submit">
+            開始對局<small>START</small>
+          </button>
         </form>
       </section>
+
       <section
-        class="route-page"
+        class="route-page panel-page"
         data-page="settings"
         hidden=""
         id="settings-page"
       >
-        <button class="page-back" data-page-link="menu">← 返回選單</button>
-        <div class="dialog-heading">
-          <div>
-            <span class="eyebrow">ROOM SETTINGS</span>
-            <h2>舒服的節奏。</h2>
-          </div>
+        <button class="page-back" data-page-link="menu">返回選單</button>
+        <div class="page-title">
+          <span class="eyebrow">SETTINGS</span>
+          <h1>棋室設定</h1>
         </div>
         <label class="setting-row"
-          ><span><b>和服手部動畫</b><small>伸手、持棋、落子與收手</small></span
+          ><b>和服手部動畫</b
           ><input checked="" id="animation-setting" type="checkbox" /></label
-        ><label class="field"
-          >落子動作速度<select id="speed-setting">
-            <option value="1300">輕快 · 1.3 秒</option>
-            <option selected="" value="1850">自然 · 1.85 秒</option>
-            <option value="2600">慢賞 · 2.6 秒</option>
+        ><label class="setting-row"
+          ><b>落子速度</b
+          ><select id="speed-setting">
+            <option value="1300">輕快</option>
+            <option selected="" value="1850">自然</option>
+            <option value="2600">慢賞</option>
           </select></label
         ><label class="setting-row"
-          ><span><b>合法走位提示</b><small>顯示可走位置與可取棋子</small></span
+          ><b>合法走位提示</b
           ><input checked="" id="legal-setting" type="checkbox"
         /></label>
-        <p class="field-note">
-          棋盤固定微微朝我方傾斜。離開對局頁時會自動暫停。
-        </p>
         <section class="ambience">
-          <div class="section-label">
-            <span>棋室光景</span><small>ATMOSPHERE</small>
-          </div>
+          <div class="section-label"><span>棋室光景</span></div>
           <div class="themes">
             <button
               aria-label="春日光線"
               class="selected"
               data-theme="spring"
-              title="春日"
             >
               <i class="spring"></i>春日</button
-            ><button aria-label="夕暮光線" data-theme="sunset" title="夕暮">
+            ><button aria-label="夕暮光線" data-theme="sunset">
               <i class="sunset"></i>夕暮</button
-            ><button aria-label="月夜光線" data-theme="night" title="月夜">
+            ><button aria-label="月夜光線" data-theme="night">
               <i class="night"></i>月夜
             </button>
           </div>
@@ -333,21 +307,18 @@
           </div>
         </section>
       </section>
+
       <section
-        class="route-page"
+        class="route-page panel-page"
         data-page="profile"
         hidden=""
         id="profile-page"
       >
-        <button class="page-back" data-page-link="players">
-          ← 返回玩家資料
-        </button>
+        <button class="page-back" data-page-link="players">返回玩家資料</button>
         <form id="profile-form">
-          <div class="dialog-heading">
-            <div>
-              <span class="eyebrow">MAKE IT YOURS</span>
-              <h2>以你的樣子，入座。</h2>
-            </div>
+          <div class="page-title">
+            <span class="eyebrow">PROFILE</span>
+            <h1>編輯玩家</h1>
           </div>
           <div class="profile-preview">
             <div class="avatar large" id="profile-avatar"></div>
@@ -368,50 +339,52 @@
               placeholder="輸入你的名字"
               required=""
           /></label>
-          <p class="field-note">
-            PNG、JPG 或 WebP，最大 5 MB。頭像與名稱只儲存在這台瀏覽器。
-          </p>
+          <p class="field-note">PNG / JPG / WebP · 5 MB 以內</p>
           <div class="form-error" id="profile-error" role="alert"></div>
-          <button class="primary full" type="submit">儲存個人設定</button>
+          <button class="primary full" type="submit">
+            儲存<small>SAVE</small>
+          </button>
         </form>
       </section>
-      <section class="route-page" data-page="rules" hidden="" id="rules-page">
-        <button class="page-back" data-page-link="menu">← 返回選單</button>
-        <div class="dialog-heading">
-          <div>
-            <span class="eyebrow">HOW TO PLAY</span>
-            <h2>從一手，開始。</h2>
-          </div>
+
+      <section
+        class="route-page panel-page"
+        data-page="rules"
+        hidden=""
+        id="rules-page"
+      >
+        <button class="page-back" data-page-link="menu">返回選單</button>
+        <div class="page-title">
+          <span class="eyebrow">HOW TO PLAY</span>
+          <h1>玩法指南</h1>
         </div>
         <div class="rules-content">
           <p>
-            先手先行，雙方輪流移動一枚棋子，或將持駒打入空格。目標是讓對方玉將無法解除王手，也就是「詰み」。
+            先手先行，雙方輪流移動一枚棋子，或將持駒打入空格。讓對方玉將無法解除王手即為「詰み」。
           </p>
           <div class="rules-pieces" id="rules-pieces"></div>
           <h3>升變與打入</h3>
           <p>
             可升變棋子移入、移出或在敵陣三段內移動時，可選「成」或「不成」。步、香到最末段，以及桂到最後兩段，必須成。取得的敵子回復未升變狀態，成為你的持駒。
           </p>
-          <h3>禁手會自動阻止</h3>
+          <h3>禁手</h3>
           <p>
-            不可二步（同一筋兩枚未成步）、打步詰（打入步兵立即將死）、無路可走的打入、跳越阻擋（桂馬除外）、王手放置或讓玉進入受攻擊格。
+            二步、打步詰、無路可走的打入、跳越阻擋（桂馬除外）、自陷王手，皆會自動阻止。
           </p>
           <h3>千日手與入玉</h3>
           <p>
-            棋盤、持駒和輪到哪方都相同的局面出現四次，判千日手；其中一方每手持續王手，該方判負。500
-            手後在無王手時判持將棋，均可換先後手重賽。
+            同一局面出現四次判千日手；其中一方持續王手，該方判負。500
+            手後無王手時判持將棋。
           </p>
           <p>
-            本棋室採用<strong>業餘 27 點入玉宣言制</strong
-            >：玉進入敵陣、未被王手、敵陣內除玉至少十枚己方棋子，敵陣棋子與持駒計分（飛角各
-            5，其餘各 1），先手至少 28、後手至少 27 點。宣言條件不足會判負。
+            入玉宣言採<strong>業餘 27 點制</strong
+            >：玉進入敵陣、未被王手、敵陣內除玉至少十枚己方棋子；飛角各
+            5 點，其餘各 1 點，先手需 28 點、後手需 27 點。條件不足判負。
           </p>
-          <h3>時間與休閒功能</h3>
-          <p>
-            讀秒是主時間用完後，每手可使用的一段時間，落子後重設。動畫時間不扣用時。這是可暫停、悔棋和使用提示的休閒棋室，不是競賽計時平台。
-          </p>
+          <h3>讀秒</h3>
+          <p>主時間用完後，每手可使用的時間，落子後重設。動畫時間不計入。</p>
           <p class="source-note">
-            規則參考：<a
+            參考：<a
               href="https://www.shogi.or.jp/knowledge/shogi/03.php"
               rel="noreferrer"
               target="_blank"
@@ -421,29 +394,27 @@
               rel="noreferrer"
               target="_blank"
               >入玉宣言與規則問答</a
-            >。
+            >
           </p>
         </div>
       </section>
     </main>
+
     <dialog id="promote-dialog">
       <div class="dialog-heading">
-        <div>
-          <span class="eyebrow">PROMOTION</span>
-          <h2>這一步，要成嗎？</h2>
-        </div>
+        <span class="eyebrow">PROMOTION</span>
+        <h2>要成嗎？</h2>
       </div>
       <p id="promote-description"></p>
       <div class="promotion-options">
         <button id="promote-yes">
           <span class="promo-piece promoted" id="promoted-symbol">龍</span
-          ><b>成</b><small>升變，改變走法</small></button
+          ><b>成</b></button
         ><button id="promote-no">
-          <span class="promo-piece" id="normal-symbol">飛</span><b>不成</b
-          ><small>保留原本走法</small>
+          <span class="promo-piece" id="normal-symbol">飛</span><b>不成</b>
         </button>
       </div>
-      <button class="text-button full" id="promote-cancel">取消這一步</button>
+      <button class="text-button full" id="promote-cancel">取消</button>
     </dialog>
     <dialog id="confirm-dialog">
       <h2 id="confirm-title"></h2>
@@ -454,13 +425,13 @@
       </div>
     </dialog>
     <dialog id="result-dialog">
+      <span class="eyebrow">GAME SET</span>
       <div class="result-seal" id="result-seal">勝</div>
-      <span class="eyebrow">THANK YOU FOR THE GAME</span>
       <h2 id="result-title"></h2>
       <p id="result-detail"></p>
       <div class="dialog-buttons">
         <button class="secondary" id="result-review">回顧棋譜</button
-        ><button class="primary" id="result-new">再下一局 →</button>
+        ><button class="primary" id="result-new">再下一局</button>
       </div>
     </dialog>
     <div aria-live="polite" id="toast" role="status"></div>

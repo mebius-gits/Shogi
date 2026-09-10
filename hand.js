@@ -8,7 +8,6 @@ const smooth = (t) => {
 };
 
 // A standalone right hand. Local origin is the grip point; +Z points to the wrist.
-// No body, head or character illustration is part of this asset.
 export function makeHand(side = 0) {
   const hand = new THREE.Group();
   hand.name = "ShogiHand";
@@ -37,7 +36,6 @@ export function makeHand(side = 0) {
     parent.add(m);
     return m;
   }
-  // Ring-based palm: continuous rounded surface, narrower at wrist and thumb web.
   const palmProfile = [
     [0.46, 0.32, 0.12],
     [0.58, 0.395, 0.155],
@@ -89,7 +87,6 @@ export function makeHand(side = 0) {
   palm.castShadow = palm.receiveShadow = true;
   hand.add(palm);
   ellipsoid(hand, "ThumbWeb", [-0.265, 0.71, 0.88], [0.17, 0.12, 0.25]);
-  // Short capped cuff makes the independent wrist end read as a deliberate game asset.
   function cuffRing(z, length, material, radius) {
     const m = new THREE.Mesh(
       new THREE.CylinderGeometry(radius, radius * 1.04, length, 32),
@@ -103,8 +100,6 @@ export function makeHand(side = 0) {
   }
   cuffRing(1.69, 0.24, cuff, 0.265);
   cuffRing(1.57, 0.04, trim, 0.271);
-  // Draped, flaring kimono sleeve, continuous from wrist to off-screen arm end.
-  // A narrow inner cuff and a wider patterned outer layer make the fabric readable.
   const textile = document.createElement("canvas");
   textile.width = textile.height = 512;
   const ctx = textile.getContext("2d");
@@ -224,8 +219,6 @@ export function makeHand(side = 0) {
       bones.push(joint);
       parent = joint;
     });
-    // One uninterrupted skin surface, with blended weights at the bends.
-    // There are no overlapping joint spheres or segment end caps.
     const positions = [],
       indices = [],
       skinIndices = [],
@@ -339,7 +332,6 @@ export function makeHand(side = 0) {
     [-0.4, -0.24],
     [-0.82, -0.4],
   );
-  // The thumb swings inward against the underside/edge of the held piece.
   joints.push({ node: thumb, axis: "y", open: 0.6, closed: -0.08 });
   hand.scale.setScalar(1.4);
   rigs.set(hand, joints);

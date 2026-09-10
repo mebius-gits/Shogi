@@ -70,7 +70,7 @@ npm start
 | `hand.js` | 連續蒙皮手指與平滑關節、花紋和服袖子、手與棋子同步動畫 |
 | `app.js` | 玩家設定、操作、存檔、對局 UI、分頁導航、升變與終局視窗、AI 排程 |
 | `record.js` | UTF-8 KIF 匯出 |
-| `index.html`、`style.css`、`pages.css` | 繁體中文 UI 與響應式排版 |
+| `index.html`、`style.css` | 繁體中文 UI 與響應式排版（和風遊戲介面：藍、金、朱配色） |
 | `assets/koharu.png` | 前一版由內建 image_gen 生成的原創角色圖，供預設頭像使用 |
 | `vendor/` | 本地 Three.js 0.180.0，MIT 授權見 `vendor/LICENSE` |
 | `preview/` | 實際瀏覽器截圖與測試棋譜 |
