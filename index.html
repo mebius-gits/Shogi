@@ -36,23 +36,28 @@
         data-page="play"
         id="play-page"
       >
-        <div class="board-toolbar">
-          <span class="match-tag" id="game-type">平手 · 人機對局</span>
-          <span class="ply" id="ply-count">第 1 手</span>
-        </div>
         <div class="play-layout">
-          <section class="player-strip player-card" id="player-1">
-            <span class="side-label">後手<i>GOTE</i></span>
-            <div class="player-identity">
-              <div class="avatar" id="avatar-1"></div>
-              <h2 id="name-1">花咲 小春</h2>
-              <span class="player-note" id="note-1"></span>
-            </div>
-            <div class="clock-line">
-              <strong id="clock-1">∞</strong><small id="clock-note-1"></small>
-            </div>
-            <div class="player-footer" id="player-state-1"></div>
-          </section>
+          <aside class="side side-gote">
+            <section class="player-strip player-card" id="player-1">
+              <span class="side-label">後手<i>GOTE</i></span>
+              <div class="player-identity">
+                <div class="avatar" id="avatar-1"></div>
+                <h2 id="name-1">花咲 小春</h2>
+                <span class="player-note" id="note-1"></span>
+              </div>
+              <div class="clock-line">
+                <strong id="clock-1">∞</strong><small id="clock-note-1"></small>
+              </div>
+              <div class="player-footer" id="player-state-1"></div>
+            </section>
+            <section class="side-record">
+              <div class="side-head">
+                <span class="eyebrow">KIFU</span><b>棋譜</b
+                ><button data-page-link="record">一覽</button>
+              </div>
+              <ol id="side-moves"></ol>
+            </section>
+          </aside>
           <div class="play-center">
             <div class="board-stage" id="board-stage">
               <div aria-label="後手持駒" class="capture-dock capture-top">
@@ -88,41 +93,48 @@
               </div>
             </div>
           </div>
-          <section class="player-strip player-card" id="player-0">
-            <span class="side-label">先手<i>SENTE</i></span>
-            <div class="player-identity">
-              <div class="avatar" id="avatar-0"></div>
-              <h2 id="name-0">旅人</h2>
-              <span class="player-note" id="note-0"></span>
+          <aside class="side side-sente">
+            <div class="match-info">
+              <span class="match-tag" id="game-type">平手 · 人機對局</span>
+              <span class="ply" id="ply-count">第 1 手</span>
+              <p class="last-move"><small>上一手</small><b id="last-move">—</b></p>
             </div>
-            <div class="clock-line">
-              <strong id="clock-0">∞</strong><small id="clock-note-0"></small>
+            <div aria-live="polite" class="board-status" role="status">
+              <span id="status-symbol">☗</span>
+              <div>
+                <strong id="status-title"></strong>
+                <p id="status-detail"></p>
+              </div>
+              <span hidden="" id="thinking"><i></i><i></i><i></i></span>
             </div>
-            <div class="player-footer" id="player-state-0"></div>
-          </section>
-        </div>
-        <div aria-live="polite" class="board-status" role="status">
-          <span id="status-symbol">☗</span>
-          <div>
-            <strong id="status-title"></strong>
-            <p id="status-detail"></p>
-          </div>
-          <span hidden="" id="thinking"><i></i><i></i><i></i></span>
-        </div>
-        <div class="board-actions">
-          <button id="undo"><i>↶</i><span>悔棋</span></button
-          ><button id="hint"><i>✧</i><span>提示</span></button
-          ><button id="pause"><i>Ⅱ</i><span>暫停</span></button>
-        </div>
-        <div hidden="" id="review-toolbar">
-          <div class="replay-controls">
-            <button aria-label="回到初始棋局" id="replay-start">|‹</button
-            ><button aria-label="上一手" id="replay-prev">‹</button
-            ><span id="replay-position">0 / 0</span
-            ><button aria-label="下一手" id="replay-next">›</button
-            ><button aria-label="回到目前棋局" id="replay-end">›|</button>
-          </div>
-          <button class="primary" hidden="" id="return-live">返回對局</button>
+            <div class="board-actions">
+              <button id="undo"><i>↶</i><span>悔棋</span></button
+              ><button id="hint"><i>✧</i><span>提示</span></button
+              ><button id="pause"><i>Ⅱ</i><span>暫停</span></button>
+            </div>
+            <div hidden="" id="review-toolbar">
+              <div class="replay-controls">
+                <button aria-label="回到初始棋局" id="replay-start">|‹</button
+                ><button aria-label="上一手" id="replay-prev">‹</button
+                ><span id="replay-position">0 / 0</span
+                ><button aria-label="下一手" id="replay-next">›</button
+                ><button aria-label="回到目前棋局" id="replay-end">›|</button>
+              </div>
+              <button class="primary" hidden="" id="return-live">返回對局</button>
+            </div>
+            <section class="player-strip player-card" id="player-0">
+              <span class="side-label">先手<i>SENTE</i></span>
+              <div class="player-identity">
+                <div class="avatar" id="avatar-0"></div>
+                <h2 id="name-0">旅人</h2>
+                <span class="player-note" id="note-0"></span>
+              </div>
+              <div class="clock-line">
+                <strong id="clock-0">∞</strong><small id="clock-note-0"></small>
+              </div>
+              <div class="player-footer" id="player-state-0"></div>
+            </section>
+          </aside>
         </div>
       </section>
 
@@ -134,14 +146,25 @@
       >
         <button class="page-back" data-page-link="play">返回棋盤</button>
         <div class="title-block">
+          <img alt="" class="hero-art" src="assets/koharu.png" />
           <span class="eyebrow">SAKURAMA SHOGI</span>
           <h1>一局入心</h1>
-          <div class="title-meta">
-            <p id="mode-caption"></p>
-            <small id="difficulty-caption"></small>
-          </div>
         </div>
         <div class="command">
+          <div class="versus">
+            <div class="vs-player">
+              <div class="avatar" id="menu-avatar-0"></div>
+              <small>先手</small><b id="menu-name-0"></b>
+            </div>
+            <span class="vs-mark">VS</span>
+            <div class="vs-player">
+              <div class="avatar" id="menu-avatar-1"></div>
+              <small>後手</small><b id="menu-name-1"></b>
+            </div>
+            <p class="vs-meta">
+              <span id="difficulty-caption"></span><span id="menu-ply"></span>
+            </p>
+          </div>
           <button class="primary full" id="continue-game">
             繼續對局<small>CONTINUE</small>
           </button>

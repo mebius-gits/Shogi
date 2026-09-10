@@ -247,36 +247,45 @@ function renderHands(p) {
     $("#hand-count-" + side).textContent = count + " 枚";
   }
 }
-function renderRecord() {
-  const list = $("#move-list");
+function renderMoveList(list) {
   list.replaceChildren();
   if (!game.history.length) {
     const li = document.createElement("li");
     li.className = "empty-record";
     li.innerHTML = "<span>—</span><p>尚無指手</p>";
     list.append(li);
-  } else {
-    game.history.forEach((h, i) => {
-      const li = document.createElement("li"),
-        b = document.createElement("button");
-      b.dataset.ply = i + 1;
-      const active = replayIndex === null ? game.history.length : replayIndex;
-      b.classList.toggle("current", i + 1 === active);
-      for (const text of [
-        i + 1,
-        h.text.replace(/\(.*\)/, ""),
-        `${Math.round((durations[i] || 0) / 1000)}s`,
-      ]) {
-        const span = document.createElement("span");
-        span.textContent = text;
-        b.append(span);
-      }
-      b.addEventListener("click", () => replay(i + 1));
-      li.append(b);
-      list.append(li);
-    });
-    if (replayIndex === null) list.scrollTop = list.scrollHeight;
+    return;
   }
+  const active = replayIndex === null ? game.history.length : replayIndex;
+  game.history.forEach((h, i) => {
+    const li = document.createElement("li"),
+      b = document.createElement("button");
+    b.dataset.ply = i + 1;
+    b.classList.toggle("current", i + 1 === active);
+    for (const text of [
+      i + 1,
+      h.text.replace(/\(.*\)/, ""),
+      `${Math.round((durations[i] || 0) / 1000)}s`,
+    ]) {
+      const span = document.createElement("span");
+      span.textContent = text;
+      b.append(span);
+    }
+    b.addEventListener("click", () => replay(i + 1));
+    li.append(b);
+    list.append(li);
+  });
+  const current = list.querySelector(".current");
+  if (replayIndex === null) list.scrollTop = list.scrollHeight;
+  else if (current)
+    list.scrollTop +=
+      current.getBoundingClientRect().top -
+      list.getBoundingClientRect().top -
+      list.clientHeight / 2;
+}
+function renderRecord() {
+  renderMoveList($("#move-list"));
+  renderMoveList($("#side-moves"));
   const pos = replayIndex === null ? game.history.length : replayIndex;
   $("#replay-position").textContent = `${pos} / ${game.history.length}`;
   $("#replay-start").disabled = $("#replay-prev").disabled =
@@ -302,8 +311,10 @@ function render(syncBoard = true) {
     const profile = profiles[side];
     $("#name-" + side).textContent = profile.name;
     renderAvatar($("#avatar-" + side), profile);
-    $("#preview-name-" + side).textContent = profile.name;
-    renderAvatar($("#preview-avatar-" + side), profile);
+    for (const prefix of ["preview", "menu"]) {
+      $(`#${prefix}-name-${side}`).textContent = profile.name;
+      renderAvatar($(`#${prefix}-avatar-${side}`), profile);
+    }
     $("#player-" + side).classList.toggle(
       "active",
       !game.result && p.turn === side,
@@ -324,10 +335,6 @@ function render(syncBoard = true) {
               : "正在思考"
         : "靜候下一手";
   }
-  $("#mode-caption").textContent =
-    config.mode === "ai"
-      ? `與${profiles[1 - config.humanSide].name}對弈`
-      : "同機雙人對局";
   $("#game-type").textContent =
     "平手 · " + (config.mode === "ai" ? "人機對局" : "同機雙人");
   $("#difficulty-caption").textContent =
@@ -338,6 +345,12 @@ function render(syncBoard = true) {
     (config.main ? `${config.main / 60} 分 + ${config.byoyomi} 秒` : "無限時");
   $("#ply-count").textContent =
     `第 ${(replayIndex ?? game.history.length) + 1} 手`;
+  const shown =
+    replayIndex === null ? game.history.at(-1) : game.history[replayIndex - 1];
+  $("#last-move").textContent = shown ? shown.text.replace(/\(.*\)/, "") : "—";
+  $("#menu-ply").textContent = game.result
+    ? `終局 · 共 ${game.history.length} 手`
+    : `第 ${game.history.length + 1} 手`;
   $("#pause-overlay").hidden = !paused || replayIndex !== null || !!game.result;
   $("#thinking").hidden = !aiThinking && !hintThinking;
   $(".board-status").classList.toggle("checked", inCheck(p) && !game.result);
