@@ -30,6 +30,7 @@ export function exportKIF(game, profiles, durations = []) {
       declaration: "入玉勝ち",
       "invalid-declaration": "反則負け",
       "move-limit": "持将棋",
+      disconnect: "中断",
     };
     lines.push(
       `${game.history.length + 1} ${words[game.result.reason] || "詰み"}`,

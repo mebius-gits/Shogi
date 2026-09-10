@@ -17,55 +17,232 @@
   </head>
   <body>
     <header class="header">
-      <a class="brand" href="#/menu"
+      <a class="brand" href="#/home"
         ><span class="seal">将</span
         ><span class="brand-name">櫻間<small>SAKURAMA SHOGI</small></span></a
       >
-      <nav class="header-actions">
-        <button class="nav-item" data-page-link="record">
-          <b>棋譜</b><small>RECORD</small></button
-        ><button class="nav-item menu-open" data-page-link="menu">
-          <i class="burger"></i><small>MENU</small>
-        </button>
-      </nav>
+      <button class="nav-item settings-open" id="settings-open">
+        <i class="gear">⚙</i><small>SETTINGS</small>
+      </button>
     </header>
     <main class="app-pages">
+      <section
+        class="route-page title-screen"
+        data-page="home"
+        hidden=""
+        id="home-page"
+      >
+        <div class="title-block">
+          <img alt="" class="hero-art" src="assets/koharu.png" />
+          <span class="eyebrow">SAKURAMA SHOGI</span>
+          <h1>一局入心</h1>
+        </div>
+        <div class="command">
+          <button class="player-chip" id="profile-edit">
+            <span class="avatar" id="home-avatar"></span>
+            <span><small>PLAYER</small><b id="home-name"></b></span
+            ><i>EDIT</i>
+          </button>
+          <nav class="menu-grid mode-list">
+            <button data-page-link="cpu">
+              <span>01</span><b>電腦對戰</b><small>VS CPU</small></button
+            ><button data-page-link="online">
+              <span>02</span><b>連線對戰</b><small>ONLINE</small></button
+            ><button data-page-link="local">
+              <span>03</span><b>同機雙人</b><small>LOCAL</small>
+            </button>
+          </nav>
+          <div class="home-links">
+            <button data-page-link="rules">玩法指南<small>HOW TO PLAY</small></button>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="route-page panel-page setup-page"
+        data-page="cpu"
+        hidden=""
+        id="cpu-page"
+      >
+        <button class="page-back" data-page-link="home">返回首頁</button>
+        <div class="page-title">
+          <span class="eyebrow">VS CPU</span>
+          <h1>電腦對戰</h1>
+        </div>
+        <div class="setup-grid">
+          <figure class="opponent-art">
+            <img alt="" src="assets/koharu.png" />
+            <figcaption><small>OPPONENT</small><b>花咲 小春</b></figcaption>
+          </figure>
+          <form id="cpu-form">
+            <fieldset class="choice">
+              <legend>棋力</legend>
+              <label><input name="cpu-level" type="radio" value="1" /><span>入門</span></label
+              ><label><input name="cpu-level" type="radio" value="2" /><span>初級</span></label
+              ><label><input name="cpu-level" type="radio" value="3" /><span>中級</span></label>
+            </fieldset>
+            <fieldset class="choice">
+              <legend>先後手</legend>
+              <label><input name="cpu-side" type="radio" value="0" /><span>先手</span></label
+              ><label><input name="cpu-side" type="radio" value="1" /><span>後手</span></label
+              ><label><input name="cpu-side" type="radio" value="random" /><span>隨機</span></label>
+            </fieldset>
+            <fieldset class="choice">
+              <legend>對局用時</legend>
+              <label><input name="cpu-time" type="radio" value="0" /><span>無限時</span></label
+              ><label><input name="cpu-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+              ><label><input name="cpu-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+            </fieldset>
+            <button class="primary full" type="submit">
+              對局開始<small>START</small>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <section
+        class="route-page panel-page"
+        data-page="local"
+        hidden=""
+        id="local-page"
+      >
+        <button class="page-back" data-page-link="home">返回首頁</button>
+        <div class="page-title">
+          <span class="eyebrow">LOCAL</span>
+          <h1>同機雙人</h1>
+        </div>
+        <form id="local-form">
+          <div class="local-versus">
+            <div class="vs-player">
+              <div class="avatar" id="local-avatar"></div>
+              <small>先手</small><b id="local-me"></b>
+            </div>
+            <span class="vs-mark">VS</span>
+            <label class="vs-player">
+              <span class="avatar">客</span>
+              <small>後手</small
+              ><input
+                autocomplete="off"
+                id="local-name"
+                maxlength="20"
+                placeholder="對手名稱"
+              />
+            </label>
+          </div>
+          <fieldset class="choice">
+            <legend>對局用時</legend>
+            <label><input name="local-time" type="radio" value="0" /><span>無限時</span></label
+            ><label><input name="local-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+            ><label><input name="local-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+          </fieldset>
+          <button class="primary full" type="submit">
+            對局開始<small>START</small>
+          </button>
+        </form>
+      </section>
+
+      <section
+        class="route-page panel-page online-page"
+        data-page="online"
+        data-state="lobby"
+        hidden=""
+        id="online-page"
+      >
+        <button class="page-back" data-page-link="home">返回首頁</button>
+        <div class="page-title">
+          <span class="eyebrow">ONLINE</span>
+          <h1>連線對戰</h1>
+        </div>
+        <div class="net-status" data-state="idle" id="net-status">
+          <i></i><span id="net-text">尚未連線</span
+          ><button class="text-button" hidden="" id="net-retry">重試</button>
+        </div>
+        <div class="lobby">
+          <form class="lobby-card" id="create-form">
+            <h2>建立房間<small>CREATE</small></h2>
+            <fieldset class="choice">
+              <legend>對局用時</legend>
+              <label><input name="room-time" type="radio" value="0" /><span>無限時</span></label
+              ><label><input name="room-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+              ><label><input name="room-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+            </fieldset>
+            <fieldset class="choice">
+              <legend>我的先後手</legend>
+              <label><input name="room-side" type="radio" value="0" /><span>先手</span></label
+              ><label><input name="room-side" type="radio" value="1" /><span>後手</span></label
+              ><label><input name="room-side" type="radio" value="random" /><span>隨機</span></label>
+            </fieldset>
+            <button class="primary full" id="room-create" type="submit">
+              建立房間
+            </button>
+          </form>
+          <form class="lobby-card" id="join-form">
+            <h2>加入房間<small>JOIN</small></h2>
+            <label class="field"
+              >房號<input
+                autocapitalize="characters"
+                autocomplete="off"
+                class="code-input"
+                id="room-code-input"
+                maxlength="5"
+                placeholder="ABCDE"
+                spellcheck="false"
+            /></label>
+            <p class="form-error" id="join-error" role="alert"></p>
+            <button class="primary full" id="room-join" type="submit">
+              加入房間
+            </button>
+          </form>
+        </div>
+        <div class="waiting">
+          <span class="eyebrow">ROOM CODE</span>
+          <div class="room-code" id="room-code-display"></div>
+          <button class="secondary" id="room-copy">複製房號</button>
+          <p class="waiting-text">等待對手加入<i></i><i></i><i></i></p>
+          <p class="room-rule" id="room-rule"></p>
+          <button class="text-button" id="room-cancel">取消房間</button>
+        </div>
+        <div class="joining">
+          <p class="waiting-text">進入房間中<i></i><i></i><i></i></p>
+        </div>
+      </section>
+
       <section
         aria-label="將棋對局"
         class="route-page"
         data-page="play"
+        hidden=""
         id="play-page"
       >
         <div class="play-layout">
-          <aside class="side side-gote">
-            <section class="player-strip player-card" id="player-1">
-              <span class="side-label">後手<i>GOTE</i></span>
+          <aside class="side side-top">
+            <section class="player-card" id="seat-top">
+              <span class="side-label"><b class="side-name">後手</b><i class="side-en">GOTE</i></span>
               <div class="player-identity">
-                <div class="avatar" id="avatar-1"></div>
-                <h2 id="name-1">花咲 小春</h2>
-                <span class="player-note" id="note-1"></span>
+                <div class="avatar"></div>
+                <h2 class="name"></h2>
+                <span class="player-note"></span>
               </div>
               <div class="clock-line">
-                <strong id="clock-1">∞</strong><small id="clock-note-1"></small>
+                <strong class="clock">∞</strong><small class="clock-note"></small>
               </div>
-              <div class="player-footer" id="player-state-1"></div>
+              <div class="player-footer"></div>
             </section>
             <section class="side-record">
               <div class="side-head">
-                <span class="eyebrow">KIFU</span><b>棋譜</b
-                ><button data-page-link="record">一覽</button>
+                <span class="eyebrow">KIFU</span><b>棋譜</b>
               </div>
               <ol id="side-moves"></ol>
             </section>
           </aside>
           <div class="play-center">
             <div class="board-stage" id="board-stage">
-              <div aria-label="後手持駒" class="capture-dock capture-top">
-                <section class="capture-rail rail-1">
+              <div aria-label="上方持駒" class="capture-dock capture-top">
+                <section class="capture-rail rail-top">
                   <div class="section-label">
-                    <span>後手持駒</span><b id="hand-count-1">0 枚</b>
+                    <span class="hand-label">後手持駒</span><b class="hand-count">0 枚</b>
                   </div>
-                  <div class="hand-tray" id="hand-1"></div>
+                  <div class="hand-tray" id="hand-top"></div>
                 </section>
               </div>
               <div id="board-canvas">
@@ -74,6 +251,7 @@
                   <p>LOADING</p>
                 </div>
               </div>
+              <div aria-hidden="true" class="petals" id="petals"></div>
               <div hidden="" id="pause-overlay">
                 <span class="overlay-flower">✿</span>
                 <span class="eyebrow">PAUSE</span>
@@ -83,19 +261,19 @@
               <div class="replay-badge" hidden="" id="replay-badge">
                 棋譜回顧 · <span></span>
               </div>
-              <div aria-label="先手持駒" class="capture-dock capture-bottom">
-                <section class="capture-rail rail-0">
+              <div aria-label="下方持駒" class="capture-dock capture-bottom">
+                <section class="capture-rail rail-bottom">
                   <div class="section-label">
-                    <span>先手持駒</span><b id="hand-count-0">0 枚</b>
+                    <span class="hand-label">先手持駒</span><b class="hand-count">0 枚</b>
                   </div>
-                  <div class="hand-tray" id="hand-0"></div>
+                  <div class="hand-tray" id="hand-bottom"></div>
                 </section>
               </div>
             </div>
           </div>
-          <aside class="side side-sente">
+          <aside class="side side-bottom">
             <div class="match-info">
-              <span class="match-tag" id="game-type">平手 · 人機對局</span>
+              <span class="match-tag" id="game-type"></span>
               <span class="ply" id="ply-count">第 1 手</span>
               <p class="last-move"><small>上一手</small><b id="last-move">—</b></p>
             </div>
@@ -108,9 +286,18 @@
               <span hidden="" id="thinking"><i></i><i></i><i></i></span>
             </div>
             <div class="board-actions">
-              <button id="undo"><i>↶</i><span>悔棋</span></button
-              ><button id="hint"><i>✧</i><span>提示</span></button
+              <button id="hint"><i>✧</i><span>提示</span></button
+              ><button id="undo"><i>↶</i><span>悔棋</span></button
               ><button id="pause"><i>Ⅱ</i><span>暫停</span></button>
+              <div class="sub-actions">
+                <button id="declare">入玉宣言</button
+                ><button class="danger" id="resign">投了</button>
+              </div>
+            </div>
+            <div class="board-actions after-actions" hidden="">
+              <button id="again"><i>↻</i><span>再來一局</span></button
+              ><button id="export-record"><i>↓</i><span>下載棋譜</span></button
+              ><button id="go-home"><i>⌂</i><span>回到首頁</span></button>
             </div>
             <div hidden="" id="review-toolbar">
               <div class="replay-controls">
@@ -118,256 +305,23 @@
                 ><button aria-label="上一手" id="replay-prev">‹</button
                 ><span id="replay-position">0 / 0</span
                 ><button aria-label="下一手" id="replay-next">›</button
-                ><button aria-label="回到目前棋局" id="replay-end">›|</button>
+                ><button aria-label="回到終局" id="replay-end">›|</button>
               </div>
-              <button class="primary" hidden="" id="return-live">返回對局</button>
             </div>
-            <section class="player-strip player-card" id="player-0">
-              <span class="side-label">先手<i>SENTE</i></span>
+            <section class="player-card" id="seat-bottom">
+              <span class="side-label"><b class="side-name">先手</b><i class="side-en">SENTE</i></span>
               <div class="player-identity">
-                <div class="avatar" id="avatar-0"></div>
-                <h2 id="name-0">旅人</h2>
-                <span class="player-note" id="note-0"></span>
+                <div class="avatar"></div>
+                <h2 class="name"></h2>
+                <span class="player-note"></span>
               </div>
               <div class="clock-line">
-                <strong id="clock-0">∞</strong><small id="clock-note-0"></small>
+                <strong class="clock">∞</strong><small class="clock-note"></small>
               </div>
-              <div class="player-footer" id="player-state-0"></div>
+              <div class="player-footer"></div>
             </section>
           </aside>
         </div>
-      </section>
-
-      <section
-        class="route-page title-screen"
-        data-page="menu"
-        hidden=""
-        id="menu-page"
-      >
-        <button class="page-back" data-page-link="play">返回棋盤</button>
-        <div class="title-block">
-          <img alt="" class="hero-art" src="assets/koharu.png" />
-          <span class="eyebrow">SAKURAMA SHOGI</span>
-          <h1>一局入心</h1>
-        </div>
-        <div class="command">
-          <div class="versus">
-            <div class="vs-player">
-              <div class="avatar" id="menu-avatar-0"></div>
-              <small>先手</small><b id="menu-name-0"></b>
-            </div>
-            <span class="vs-mark">VS</span>
-            <div class="vs-player">
-              <div class="avatar" id="menu-avatar-1"></div>
-              <small>後手</small><b id="menu-name-1"></b>
-            </div>
-            <p class="vs-meta">
-              <span id="difficulty-caption"></span><span id="menu-ply"></span>
-            </p>
-          </div>
-          <button class="primary full" id="continue-game">
-            繼續對局<small>CONTINUE</small>
-          </button>
-          <nav class="menu-grid">
-            <button id="new-game">
-              <span>01</span><b>開始新局</b><small>NEW GAME</small></button
-            ><button data-page-link="players">
-              <span>02</span><b>玩家資料</b><small>PLAYERS</small></button
-            ><button id="settings-open">
-              <span>03</span><b>棋室設定</b><small>SETTINGS</small></button
-            ><button data-page-link="record">
-              <span>04</span><b>本局棋譜</b><small>RECORD</small></button
-            ><button id="rules-open">
-              <span>05</span><b>玩法指南</b><small>HOW TO PLAY</small>
-            </button>
-          </nav>
-          <div class="session-actions">
-            <button id="declare"><i>♔</i><span>入玉宣言</span></button
-            ><button class="danger" id="resign"><i>⚑</i><span>投了</span></button>
-            <p class="save-caption" id="save-status">本機自動存檔</p>
-          </div>
-        </div>
-      </section>
-
-      <section
-        class="route-page panel-page"
-        data-page="players"
-        hidden=""
-        id="players-page"
-      >
-        <button class="page-back" data-page-link="menu">返回選單</button>
-        <div class="page-title">
-          <span class="eyebrow">PLAYERS</span>
-          <h1>玩家資料</h1>
-        </div>
-        <div class="profile-choices">
-          <button class="profile-choice" data-profile="0">
-            <div class="avatar" id="preview-avatar-0"></div>
-            <span><small>先手 · SENTE</small><b id="preview-name-0"></b></span
-            ><i>EDIT</i></button
-          ><button class="profile-choice" data-profile="1">
-            <div class="avatar" id="preview-avatar-1"></div>
-            <span><small>後手 · GOTE</small><b id="preview-name-1"></b></span
-            ><i>EDIT</i>
-          </button>
-        </div>
-      </section>
-
-      <section
-        class="route-page panel-page"
-        data-page="record"
-        hidden=""
-        id="record-page"
-      >
-        <button class="page-back" data-page-link="menu">返回選單</button>
-        <div class="page-title">
-          <span class="eyebrow">RECORD</span>
-          <h1>本局棋譜</h1>
-        </div>
-        <div class="record-tools">
-          <button class="secondary" id="review-initial">從初始局面回顧</button
-          ><button class="secondary" id="export-record">下載 KIF</button>
-        </div>
-        <section class="record-card">
-          <div class="record-header">
-            <span>手數</span><span>指手</span><span>用時</span>
-          </div>
-          <ol id="move-list">
-            <li class="empty-record"><span>—</span><p>尚無指手</p></li>
-          </ol>
-        </section>
-      </section>
-
-      <section
-        class="route-page panel-page"
-        data-page="new"
-        hidden=""
-        id="new-page"
-      >
-        <button class="page-back" data-page-link="menu">返回選單</button>
-        <form id="new-form">
-          <div class="page-title">
-            <span class="eyebrow">NEW GAME</span>
-            <h1>開始新局</h1>
-          </div>
-          <label class="field"
-            >對局模式<select id="new-mode">
-              <option value="ai">與電腦對弈</option>
-              <option value="local">同機雙人</option>
-            </select></label
-          >
-          <div class="field-row">
-            <label class="field"
-              >先後手<select id="new-side">
-                <option value="0">先手</option>
-                <option value="1">後手</option>
-              </select></label
-            ><label class="field"
-              >電腦棋力<select id="new-level">
-                <option value="1">入門</option>
-                <option selected="" value="2">初級</option>
-                <option value="3">中級</option>
-              </select></label
-            >
-          </div>
-          <label class="field"
-            >對局用時<select id="new-time">
-              <option value="0">無限時</option>
-              <option value="300:10">5 分 + 讀秒 10 秒</option>
-              <option value="600:30">10 分 + 讀秒 30 秒</option>
-            </select></label
-          >
-          <p class="field-note">開始新局會覆蓋目前的存檔。</p>
-          <button class="primary full" type="submit">
-            開始對局<small>START</small>
-          </button>
-        </form>
-      </section>
-
-      <section
-        class="route-page panel-page"
-        data-page="settings"
-        hidden=""
-        id="settings-page"
-      >
-        <button class="page-back" data-page-link="menu">返回選單</button>
-        <div class="page-title">
-          <span class="eyebrow">SETTINGS</span>
-          <h1>棋室設定</h1>
-        </div>
-        <label class="setting-row"
-          ><b>和服手部動畫</b
-          ><input checked="" id="animation-setting" type="checkbox" /></label
-        ><label class="setting-row"
-          ><b>落子速度</b
-          ><select id="speed-setting">
-            <option value="1300">輕快</option>
-            <option selected="" value="1850">自然</option>
-            <option value="2600">慢賞</option>
-          </select></label
-        ><label class="setting-row"
-          ><b>合法走位提示</b
-          ><input checked="" id="legal-setting" type="checkbox"
-        /></label>
-        <section class="ambience">
-          <div class="section-label"><span>棋室光景</span></div>
-          <div class="themes">
-            <button
-              aria-label="春日光線"
-              class="selected"
-              data-theme="spring"
-            >
-              <i class="spring"></i>春日</button
-            ><button aria-label="夕暮光線" data-theme="sunset">
-              <i class="sunset"></i>夕暮</button
-            ><button aria-label="月夜光線" data-theme="night">
-              <i class="night"></i>月夜
-            </button>
-          </div>
-          <div class="ambience-toggles">
-            <button aria-pressed="true" id="sound-toggle">♫ 音效開</button
-            ><button aria-pressed="true" id="shadow-toggle">◐ 陰影開</button>
-          </div>
-        </section>
-      </section>
-
-      <section
-        class="route-page panel-page"
-        data-page="profile"
-        hidden=""
-        id="profile-page"
-      >
-        <button class="page-back" data-page-link="players">返回玩家資料</button>
-        <form id="profile-form">
-          <div class="page-title">
-            <span class="eyebrow">PROFILE</span>
-            <h1>編輯玩家</h1>
-          </div>
-          <div class="profile-preview">
-            <div class="avatar large" id="profile-avatar"></div>
-            <label class="upload-button"
-              >上傳頭像<input
-                accept="image/png,image/jpeg,image/webp"
-                id="avatar-file"
-                type="file" /></label
-            ><button class="text-button" id="avatar-reset" type="button">
-              還原預設
-            </button>
-          </div>
-          <label class="field"
-            >顯示名稱<input
-              autocomplete="nickname"
-              id="profile-name"
-              maxlength="20"
-              placeholder="輸入你的名字"
-              required=""
-          /></label>
-          <p class="field-note">PNG / JPG / WebP · 5 MB 以內</p>
-          <div class="form-error" id="profile-error" role="alert"></div>
-          <button class="primary full" type="submit">
-            儲存<small>SAVE</small>
-          </button>
-        </form>
       </section>
 
       <section
@@ -376,7 +330,7 @@
         hidden=""
         id="rules-page"
       >
-        <button class="page-back" data-page-link="menu">返回選單</button>
+        <button class="page-back" data-page-link="home">返回首頁</button>
         <div class="page-title">
           <span class="eyebrow">HOW TO PLAY</span>
           <h1>玩法指南</h1>
@@ -404,8 +358,11 @@
             >：玉進入敵陣、未被王手、敵陣內除玉至少十枚己方棋子；飛角各
             5 點，其餘各 1 點，先手需 28 點、後手需 27 點。條件不足判負。
           </p>
-          <h3>讀秒</h3>
-          <p>主時間用完後，每手可使用的時間，落子後重設。動畫時間不計入。</p>
+          <h3>讀秒與連線</h3>
+          <p>
+            主時間用完後，每手可使用的時間，落子後重設。動畫時間不計入。連線對戰中離開或斷線超過
+            60 秒判負。
+          </p>
           <p class="source-note">
             參考：<a
               href="https://www.shogi.or.jp/knowledge/shogi/03.php"
@@ -423,6 +380,95 @@
       </section>
     </main>
 
+    <dialog class="sheet" id="settings-dialog">
+      <div class="sheet-head">
+        <div class="page-title">
+          <span class="eyebrow">SETTINGS</span>
+          <h1>設定</h1>
+        </div>
+        <button aria-label="關閉設定" class="sheet-close" id="settings-close">✕</button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button aria-selected="true" data-tab="profile" role="tab">
+          玩家<small>PROFILE</small></button
+        ><button aria-selected="false" data-tab="room" role="tab">
+          棋室<small>ROOM</small></button
+        ><button aria-selected="false" data-tab="network" role="tab">
+          連線<small>NETWORK</small>
+        </button>
+      </div>
+      <form class="tab-panel" data-panel="profile" id="profile-form">
+        <div class="profile-preview">
+          <div class="avatar large" id="profile-avatar"></div>
+          <label class="upload-button"
+            >上傳頭像<input
+              accept="image/png,image/jpeg,image/webp"
+              id="avatar-file"
+              type="file" /></label
+          ><button class="text-button" id="avatar-reset" type="button">
+            還原預設
+          </button>
+        </div>
+        <label class="field"
+          >顯示名稱<input
+            autocomplete="nickname"
+            id="profile-name"
+            maxlength="20"
+            placeholder="輸入你的名字"
+            required=""
+        /></label>
+        <p class="field-note">PNG / JPG / WebP · 5 MB 以內</p>
+        <div class="form-error" id="profile-error" role="alert"></div>
+        <button class="primary full" type="submit">儲存<small>SAVE</small></button>
+      </form>
+      <div class="tab-panel" data-panel="room" hidden="">
+        <label class="setting-row"
+          ><b>和服手部動畫</b
+          ><input checked="" id="animation-setting" type="checkbox" /></label
+        ><label class="setting-row"
+          ><b>落子速度</b
+          ><select id="speed-setting">
+            <option value="1300">輕快</option>
+            <option selected="" value="1850">自然</option>
+            <option value="2600">慢賞</option>
+          </select></label
+        ><label class="setting-row"
+          ><b>合法走位提示</b
+          ><input checked="" id="legal-setting" type="checkbox"
+        /></label>
+        <section class="ambience">
+          <div class="section-label"><span>棋室光景</span></div>
+          <div class="themes">
+            <button aria-label="春日光線" data-theme="spring">
+              <i class="spring"></i>春日</button
+            ><button aria-label="夕暮光線" data-theme="sunset">
+              <i class="sunset"></i>夕暮</button
+            ><button aria-label="月夜光線" data-theme="night">
+              <i class="night"></i>月夜
+            </button>
+          </div>
+          <div class="ambience-toggles">
+            <button aria-pressed="true" id="sound-toggle">♫ 音效開</button
+            ><button aria-pressed="true" id="shadow-toggle">◐ 陰影開</button>
+          </div>
+        </section>
+      </div>
+      <form class="tab-panel" data-panel="network" hidden="" id="network-form">
+        <label class="field"
+          >MQTT Broker（WebSocket）<input
+            autocomplete="off"
+            id="broker-url"
+            placeholder="wss://broker.emqx.io:8084/mqtt"
+            spellcheck="false"
+        /></label>
+        <p class="field-note">預設為公開測試伺服器，名稱與頭像會以明文傳送。</p>
+        <div class="form-error" id="broker-error" role="alert"></div>
+        <div class="dialog-buttons">
+          <button class="secondary" id="broker-reset" type="button">恢復預設</button
+          ><button class="primary" type="submit">儲存</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="promote-dialog">
       <div class="dialog-heading">
         <span class="eyebrow">PROMOTION</span>
@@ -454,8 +500,9 @@
       <p id="result-detail"></p>
       <div class="dialog-buttons">
         <button class="secondary" id="result-review">回顧棋譜</button
-        ><button class="primary" id="result-new">再下一局</button>
+        ><button class="primary" id="result-again">再來一局</button>
       </div>
+      <button class="text-button full" id="result-home">回到首頁</button>
     </dialog>
     <div aria-live="polite" id="toast" role="status"></div>
     <script src="app.js" type="module"></script>

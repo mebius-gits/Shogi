@@ -4,49 +4,104 @@ import {
   NAMES,
   HAND_TYPES,
   fromSFEN,
-  toSFEN,
-  legalMoves,
   inCheck,
   declaration,
-  moveKey,
 } from "./engine.js";
 import { GameClock } from "./clock.js";
 import { BoardScene } from "./scene.js";
 import { exportKIF } from "./record.js";
-const $ = (s) => document.querySelector(s),
+import { OnlineRoom, DEFAULT_BROKER, cleanRoomCode } from "./net.js";
+
+const $ = (s, root = document) => root.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
-const SAVE_KEY = "sakurama-shogi-v1";
-let currentPage = "play";
-function navigate(name, replace = false) {
-  if (!document.getElementById(name + "-page")) name = "play";
-  if (name !== "play" && currentPage === "play") setPaused(true);
-  currentPage = name;
-  for (const page of $$("[data-page]"))
-    page.hidden = page.dataset.page !== name;
-  if (location.hash !== "#/" + name)
-    history[replace ? "replaceState" : "pushState"](null, "", "#/" + name);
-  render(false);
-  requestAnimationFrame(() => board.resize());
-  window.scrollTo(0, 0);
-}
-window.addEventListener("hashchange", () =>
-  navigate(location.hash.slice(2), true),
-);
-const defaults = { mode: "ai", humanSide: 0, level: 2, main: 0, byoyomi: 0 };
-let config = { ...defaults },
-  prefs = {
+const STORE_KEY = "sakurama-shogi-v2";
+const CPU = { name: "花咲 小春", avatar: "koharu" };
+const LEVELS = ["", "入門", "初級", "中級"];
+const TIMES = { 0: [0, 0], "300:10": [300, 10], "600:30": [600, 30] };
+const PEER_GRACE = 60000;
+
+const cleanProfile = (p, fallback) => ({
+  name:
+    typeof p?.name === "string"
+      ? p.name.trim().slice(0, 20) || fallback.name
+      : fallback.name,
+  avatar:
+    p?.avatar === "koharu" ||
+    (/^data:image\/(png|jpeg|webp);base64,/.test(p?.avatar || "") &&
+      p.avatar.length < 120000)
+      ? p.avatar
+      : fallback.avatar,
+});
+const pick = (value, allowed, fallback) =>
+  allowed.includes(value) ? value : fallback;
+
+let store = {
+  prefs: {
     theme: "spring",
     sound: true,
     shadows: true,
     animation: true,
     speed: 1850,
     legal: true,
-  };
-let profiles = [
-  { name: "旅人", avatar: "" },
-  { name: "花咲 小春", avatar: "koharu" },
-];
-let game = new Game(),
+  },
+  profile: { name: "旅人", avatar: "" },
+  broker: DEFAULT_BROKER,
+  cpu: { level: "2", side: "0", time: "0" },
+  local: { name: "對手", time: "0" },
+  room: { time: "300:10", side: "random" },
+};
+function loadStore() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    const old = raw
+      ? null
+      : JSON.parse(localStorage.getItem("sakurama-shogi-v1") || "null");
+    const data = raw || {
+      prefs: old?.prefs,
+      profile: old?.profiles?.[0],
+    };
+    const p = { ...store.prefs, ...data.prefs };
+    store.prefs = {
+      theme: pick(p.theme, ["spring", "sunset", "night"], "spring"),
+      sound: p.sound !== false,
+      shadows: p.shadows !== false,
+      animation: p.animation !== false,
+      speed: pick(p.speed, [1300, 1850, 2600], 1850),
+      legal: p.legal !== false,
+    };
+    store.profile = cleanProfile(data.profile, store.profile);
+    if (/^wss?:\/\/\S+$/.test(data.broker || "")) store.broker = data.broker;
+    const times = Object.keys(TIMES);
+    store.cpu = {
+      level: pick(data.cpu?.level, ["1", "2", "3"], "2"),
+      side: pick(data.cpu?.side, ["0", "1", "random"], "0"),
+      time: pick(data.cpu?.time, times, "0"),
+    };
+    store.local = {
+      name: cleanProfile({ name: data.local?.name }, { name: "對手" }).name,
+      time: pick(data.local?.time, times, "0"),
+    };
+    store.room = {
+      time: pick(data.room?.time, times, "300:10"),
+      side: pick(data.room?.side, ["0", "1", "random"], "random"),
+    };
+    if (old) localStorage.removeItem("sakurama-shogi-v1");
+  } catch (error) {
+    console.warn("Could not read preferences:", error.message);
+  }
+}
+function persist() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  } catch {
+    toast("無法儲存設定到瀏覽器。");
+  }
+}
+loadStore();
+
+let session = null,
+  players = [store.profile, CPU],
+  game = new Game(),
   clock = new GameClock(),
   durations = [],
   clockHistory = [],
@@ -63,89 +118,29 @@ let paused = false,
   aiTimer = null,
   epoch = 0,
   lastTick = Date.now(),
-  lastSave = Date.now(),
   toastTimer,
-  resultShown = false;
+  resultShown = false,
+  currentPage = "home";
+let net = null,
+  netStatus = "idle",
+  peerLostAt = null,
+  remoteFlagAt = null,
+  rematch = { me: false, peer: false },
+  peerLeft = false,
+  pendingRemote = [];
+
 function toast(text) {
   $("#toast").textContent = text;
   $("#toast").classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 3400);
 }
-const cleanProfile = (p, fallback) => ({
-  name:
-    typeof p?.name === "string"
-      ? p.name.trim().slice(0, 20) || fallback.name
-      : fallback.name,
-  avatar:
-    p?.avatar === "koharu" ||
-    /^data:image\/(png|jpeg|webp);base64,/.test(p?.avatar || "")
-      ? p.avatar
-      : fallback.avatar,
-});
-let restored = false;
-try {
-  const raw = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
-  if (raw) {
-    const loaded = Game.restore(raw.game);
-    config = { ...defaults, ...raw.config };
-    if (
-      !["ai", "local"].includes(config.mode) ||
-      ![0, 1].includes(config.humanSide) ||
-      ![1, 2, 3].includes(config.level) ||
-      ![0, 300, 600].includes(config.main) ||
-      ![0, 10, 30].includes(config.byoyomi)
-    )
-      throw new Error("Invalid config");
-    game = loaded;
-    prefs = { ...prefs, ...raw.prefs };
-    if (!["spring", "sunset", "night"].includes(prefs.theme))
-      prefs.theme = "spring";
-    if (![1300, 1850, 2600].includes(prefs.speed)) prefs.speed = 1850;
-    profiles = profiles.map((p, i) => cleanProfile(raw.profiles?.[i], p));
-    clock = new GameClock(config.main, config.byoyomi, raw.clock);
-    if (
-      ![...clock.remaining, ...clock.used, clock.period].every(
-        (n) => Number.isFinite(n) && n >= 0,
-      )
-    )
-      throw new Error("Invalid clock");
-    durations = raw.durations || [];
-    clockHistory = raw.clockHistory || [];
-    turnUsedBase = raw.turnUsedBase || [0, 0];
-    paused = !game.result;
-    restored = true;
-  }
-} catch (error) {
-  console.warn("Could not restore saved game:", error.message);
-  game = new Game();
-  config = { ...defaults };
-  clock = new GameClock();
-  durations = [];
-  clockHistory = [];
-  turnUsedBase = [0, 0];
-}
-function save() {
-  try {
-    localStorage.setItem(
-      SAVE_KEY,
-      JSON.stringify({
-        game: game.serialize(),
-        config,
-        prefs,
-        profiles,
-        clock: clock.serialize(),
-        durations,
-        clockHistory,
-        turnUsedBase,
-      }),
-    );
-    $("#save-status").textContent = "本機自動存檔";
-  } catch {
-    $("#save-status").textContent = "存檔空間不足";
-    toast("無法儲存到瀏覽器，請下載棋譜保留這局。");
-  }
-}
+const online = () => session?.mode === "online";
+const offline = () => !!session && session.mode !== "online";
+const gameActive = () => !!session && !game.result;
+const flipped = () => !!session && session.mode !== "local" && session.mySide === 1;
+const seatSide = (seat) => (seat === "bottom") === flipped() ? 1 : 0;
+
 let board;
 try {
   board = new BoardScene($("#board-canvas"), onSquare);
@@ -157,6 +152,46 @@ try {
   throw error;
 }
 $("#board-canvas").addEventListener("rendererror", (e) => toast(e.detail));
+for (let i = 0; i < 14; i++) {
+  const petal = document.createElement("i"),
+    duration = 11 + Math.random() * 9;
+  petal.style.cssText = `--x:${Math.random() * 100}%;--s:${8 + Math.random() * 7}px;--d:${duration}s;--delay:${-Math.random() * duration}s;--o:${0.55 + Math.random() * 0.35}`;
+  $("#petals").append(petal);
+}
+
+function navigate(name, replace = false) {
+  if (!document.getElementById(name + "-page")) name = "home";
+  if (name === "play" && !session) name = "home";
+  if (currentPage === "play" && name !== "play" && session) {
+    if (location.hash !== "#/play") history.replaceState(null, "", "#/play");
+    if (gameActive()) {
+      confirmAction(
+        "離開對局？",
+        online() ? "離開將視為投了。" : "目前的對局將會結束。",
+        () => {
+          leaveGame();
+          navigate(name);
+        },
+      );
+      return;
+    }
+    leaveGame();
+  }
+  if (currentPage === "online" && name !== "online" && !session) closeNet();
+  currentPage = name;
+  for (const page of $$("[data-page]")) page.hidden = page.dataset.page !== name;
+  if (location.hash !== "#/" + name)
+    history[replace ? "replaceState" : "pushState"](null, "", "#/" + name);
+  if (name === "online") enterLobby();
+  if (name === "home" || name === "local") renderHome();
+  render(false);
+  requestAnimationFrame(() => board.resize());
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", () =>
+  navigate(location.hash.slice(2), true),
+);
+
 function renderAvatar(el, p) {
   el.replaceChildren();
   if (p.avatar) {
@@ -174,12 +209,15 @@ function currentPosition() {
   );
 }
 function isHumanTurn() {
-  return config.mode === "local" || game.position.turn === config.humanSide;
+  return (
+    !!session &&
+    (session.mode === "local" || game.position.turn === session.mySide)
+  );
 }
 function canPlay() {
   return (
     currentPage === "play" &&
-    !game.result &&
+    gameActive() &&
     !paused &&
     replayIndex === null &&
     !animating &&
@@ -188,7 +226,100 @@ function canPlay() {
     isHumanTurn()
   );
 }
-let cachedMoves = [];
+
+function startGame(options) {
+  epoch++;
+  stopJobs();
+  board.cancel();
+  session = options;
+  players = options.players;
+  game = new Game(options.sfen);
+  clock = new GameClock(options.main, options.byoyomi);
+  durations = [];
+  clockHistory = [];
+  turnUsedBase = [0, 0];
+  selection = null;
+  promotionMoves = null;
+  paused = false;
+  replayIndex = null;
+  animating = false;
+  resultShown = false;
+  peerLostAt = null;
+  remoteFlagAt = null;
+  rematch = { me: false, peer: false };
+  peerLeft = false;
+  pendingRemote = [];
+  for (const d of $$("dialog[open]"))
+    if (d.id !== "settings-dialog") d.close();
+  board.setFlipped(flipped());
+  lastTick = Date.now();
+  board.sync(game.position);
+  navigate("play");
+  render();
+  scheduleAI();
+}
+function leaveGame() {
+  stopJobs();
+  board.cancel();
+  if (online()) {
+    if (!game.result) {
+      game.resign(session.mySide);
+      net?.send("resign");
+    }
+    net?.send("leave");
+    closeNet();
+  }
+  session = null;
+}
+function startCpu() {
+  const { level, side, time } = store.cpu;
+  const mySide = side === "random" ? Math.round(Math.random()) : Number(side);
+  const [main, byoyomi] = TIMES[time];
+  startGame({
+    mode: "ai",
+    level: Number(level),
+    mySide,
+    main,
+    byoyomi,
+    players: mySide ? [CPU, store.profile] : [store.profile, CPU],
+  });
+}
+function startLocal(sfen) {
+  const [main, byoyomi] = TIMES[store.local.time];
+  startGame({
+    mode: "local",
+    mySide: 0,
+    main,
+    byoyomi,
+    sfen,
+    players: [store.profile, { name: store.local.name, avatar: "" }],
+  });
+}
+const radio = (name) => $(`input[name="${name}"]:checked`)?.value;
+const setRadio = (name, value) => {
+  const input = $(`input[name="${name}"][value="${value}"]`);
+  if (input) input.checked = true;
+};
+$("#cpu-form").onsubmit = (e) => {
+  e.preventDefault();
+  store.cpu = {
+    level: radio("cpu-level"),
+    side: radio("cpu-side"),
+    time: radio("cpu-time"),
+  };
+  persist();
+  startCpu();
+};
+$("#local-form").onsubmit = (e) => {
+  e.preventDefault();
+  store.local = {
+    name: $("#local-name").value.trim().slice(0, 20) || "對手",
+    time: radio("local-time"),
+  };
+  persist();
+  startLocal();
+};
+
 function highlight() {
   const p = currentPosition(),
     last =
@@ -204,15 +335,18 @@ function highlight() {
     ? p.board.findIndex((a) => a?.type === "K" && a.side === p.turn)
     : null;
   board.highlight(
-    prefs.legal ? moves.map((m) => m.to) : [],
+    store.prefs.legal ? moves.map((m) => m.to) : [],
     selection?.from ?? null,
     last,
     king < 0 ? null : king,
   );
 }
+let cachedMoves = [];
 function renderHands(p) {
-  for (const side of [0, 1]) {
-    const holder = $("#hand-" + side);
+  for (const seat of ["top", "bottom"]) {
+    const side = seatSide(seat),
+      holder = $("#hand-" + seat),
+      rail = holder.closest(".capture-rail");
     holder.replaceChildren();
     let count = 0;
     for (const type of HAND_TYPES) {
@@ -226,8 +360,7 @@ function renderHands(p) {
         "aria-label",
         `${side ? "後手" : "先手"}持駒 ${NAMES[type]} ${n} 枚`,
       );
-      button.disabled =
-        !n || !canPlay() || side !== game.position.turn || replayIndex !== null;
+      button.disabled = !n || !canPlay() || side !== game.position.turn;
       const symbol = document.createElement("span");
       symbol.textContent = LABELS[type];
       button.append(symbol);
@@ -244,7 +377,8 @@ function renderHands(p) {
       });
       holder.append(button);
     }
-    $("#hand-count-" + side).textContent = count + " 枚";
+    $(".hand-label", rail).textContent = side ? "後手持駒" : "先手持駒";
+    $(".hand-count", rail).textContent = count + " 枚";
   }
 }
 function renderMoveList(list) {
@@ -261,6 +395,7 @@ function renderMoveList(list) {
     const li = document.createElement("li"),
       b = document.createElement("button");
     b.dataset.ply = i + 1;
+    b.disabled = !game.result;
     b.classList.toggle("current", i + 1 === active);
     for (const text of [
       i + 1,
@@ -284,17 +419,13 @@ function renderMoveList(list) {
       list.clientHeight / 2;
 }
 function renderRecord() {
-  renderMoveList($("#move-list"));
   renderMoveList($("#side-moves"));
   const pos = replayIndex === null ? game.history.length : replayIndex;
   $("#replay-position").textContent = `${pos} / ${game.history.length}`;
-  $("#replay-start").disabled = $("#replay-prev").disabled =
-    !game.history.length || pos === 0;
+  $("#replay-start").disabled = $("#replay-prev").disabled = pos === 0;
   $("#replay-next").disabled = $("#replay-end").disabled =
-    !game.history.length ||
-    (pos === game.history.length && replayIndex === null);
-  $("#return-live").hidden = replayIndex === null;
-  $("#review-toolbar").hidden = replayIndex === null;
+    pos === game.history.length;
+  $("#review-toolbar").hidden = !game.result || !game.history.length;
   $("#replay-badge").hidden = replayIndex === null;
   $("#replay-badge span").textContent = `第 ${pos} 手`;
 }
@@ -303,64 +434,105 @@ function status(title, detail, symbol = "☗") {
   $("#status-detail").textContent = detail;
   $("#status-symbol").textContent = symbol;
 }
+function playerNote(side) {
+  if (session?.mode === "ai" && side !== session.mySide)
+    return "CPU · " + LEVELS[session.level];
+  if (online()) return side === session.mySide ? "YOU" : "ONLINE";
+  return "";
+}
+function playerState(side, p) {
+  if (game.result) return "對局已結束";
+  if (p.turn !== side) return "靜候下一手";
+  if (online() && side !== session.mySide && peerLostAt) return "連線中斷";
+  if (paused) return "稍作歇息";
+  if (animating) return "正在落子";
+  return inCheck(p) ? "王手，請應將" : "正在思考";
+}
+function renderSeats(p) {
+  for (const seat of ["top", "bottom"]) {
+    const el = $("#seat-" + seat),
+      side = seatSide(seat),
+      profile = players[side];
+    $(".side-name", el).textContent = side ? "後手" : "先手";
+    $(".side-en", el).textContent = side ? "GOTE" : "SENTE";
+    $(".name", el).textContent = profile.name;
+    renderAvatar($(".avatar", el), profile);
+    $(".player-note", el).textContent = playerNote(side);
+    $(".player-footer", el).textContent = playerState(side, p);
+    el.classList.toggle("active", !game.result && p.turn === side);
+  }
+  renderClocks();
+}
+function renderClocks() {
+  for (const seat of ["top", "bottom"]) {
+    const el = $("#seat-" + seat),
+      side = seatSide(seat);
+    $(".clock", el).textContent = clock.display(side, game.position.turn);
+    $(".clock-note", el).textContent = clock.unlimited
+      ? ""
+      : clock.remaining[side] > 0
+        ? `讀秒 ${session?.byoyomi ?? 0} 秒`
+        : "正在讀秒";
+  }
+}
+function modeLabel() {
+  if (!session) return "";
+  if (session.mode === "ai") return "平手 · 電腦對戰";
+  if (session.mode === "local") return "平手 · 同機雙人";
+  return `連線對戰 · 房號 ${session.code}`;
+}
 function render(syncBoard = true) {
+  if (!session) return;
   const p = currentPosition();
   if (syncBoard) board.sync(p, game.history.at(-1)?.move);
   cachedMoves = game.result || replayIndex !== null ? [] : game.moves();
-  for (const side of [0, 1]) {
-    const profile = profiles[side];
-    $("#name-" + side).textContent = profile.name;
-    renderAvatar($("#avatar-" + side), profile);
-    for (const prefix of ["preview", "menu"]) {
-      $(`#${prefix}-name-${side}`).textContent = profile.name;
-      renderAvatar($(`#${prefix}-avatar-${side}`), profile);
-    }
-    $("#player-" + side).classList.toggle(
-      "active",
-      !game.result && p.turn === side,
-    );
-    $("#note-" + side).textContent =
-      config.mode === "ai" && side !== config.humanSide
-        ? "CPU · " + ["", "入門", "初級", "中級"][config.level]
-        : "";
-    $("#player-state-" + side).textContent = game.result
-      ? "對局已結束"
-      : p.turn === side
-        ? paused
-          ? "稍作歇息"
-          : animating
-            ? "正在落子"
-            : inCheck(p)
-              ? "王手，請應將"
-              : "正在思考"
-        : "靜候下一手";
-  }
-  $("#game-type").textContent =
-    "平手 · " + (config.mode === "ai" ? "人機對局" : "同機雙人");
-  $("#difficulty-caption").textContent =
-    (config.mode === "ai"
-      ? ["", "入門電腦", "初級電腦", "中級電腦"][config.level]
-      : "雙人對局") +
-    " · " +
-    (config.main ? `${config.main / 60} 分 + ${config.byoyomi} 秒` : "無限時");
+  renderSeats(p);
+  $("#game-type").textContent = modeLabel();
   $("#ply-count").textContent =
     `第 ${(replayIndex ?? game.history.length) + 1} 手`;
   const shown =
     replayIndex === null ? game.history.at(-1) : game.history[replayIndex - 1];
   $("#last-move").textContent = shown ? shown.text.replace(/\(.*\)/, "") : "—";
-  $("#menu-ply").textContent = game.result
-    ? `終局 · 共 ${game.history.length} 手`
-    : `第 ${game.history.length + 1} 手`;
   $("#pause-overlay").hidden = !paused || replayIndex !== null || !!game.result;
-  $("#thinking").hidden = !aiThinking && !hintThinking;
+  const waitingPeer =
+    online() && gameActive() && !isHumanTurn() && !animating && !peerLostAt;
+  $("#thinking").hidden = !aiThinking && !hintThinking && !waitingPeer;
   $(".board-status").classList.toggle("checked", inCheck(p) && !game.result);
+  renderStatus(p);
+  for (const b of board.buttons) b.disabled = !canPlay();
+  renderHands(p);
+  highlight();
+  renderRecord();
+  const assist = offline();
+  $("#hint").hidden = $("#undo").hidden = $("#pause").hidden = !assist;
+  $(".play-layout").classList.toggle("finished", !!game.result);
+  $(".board-actions:not(.after-actions)").hidden = !!game.result;
+  $(".after-actions").hidden = !game.result;
+  $("#undo").disabled = !game.history.length || animating;
+  $("#hint").disabled = !canPlay();
+  $("#pause").disabled = !!game.result || animating;
+  $("#pause span").textContent = paused ? "繼續" : "暫停";
+  $("#resign").disabled = !gameActive() || animating;
+  $("#declare").disabled = !gameActive() || animating || !isHumanTurn();
+  renderAgain();
+}
+function renderStatus(p) {
   const sideWord = p.turn ? "後手" : "先手";
   if (game.result) status(resultTitle(), reasonText(game.result.reason), "終");
   else if (replayIndex !== null)
     status(`棋譜回顧 · 第 ${replayIndex} 手`, "", "譜");
+  else if (online() && netStatus !== "online")
+    status("連線中斷", "重新連線中…", "!");
+  else if (online() && peerLostAt)
+    status(
+      "對手連線中斷",
+      `${Math.max(0, Math.ceil((PEER_GRACE - (Date.now() - peerLostAt)) / 1000))} 秒後判定勝利`,
+      "!",
+    );
   else if (paused) status("棋局已暫停", "", "Ⅱ");
   else if (animating) status("落子中", "", "手");
-  else if (aiThinking) status(`${profiles[p.turn].name}思考中`, "", "…");
+  else if (aiThinking || (online() && !isHumanTurn()))
+    status(`${players[p.turn].name}思考中`, "", "…");
   else if (hintThinking) status("尋找提示中", "", "✧");
   else if (selection) {
     const a = selection.drop
@@ -380,38 +552,38 @@ function render(syncBoard = true) {
       count ? `可走 ${count} 格` : "無法移動",
       LABELS[a.type],
     );
-  } else if (inCheck(p))
-    status(`${sideWord}被王手！`, "請應將", "王");
+  } else if (inCheck(p)) status(`${sideWord}被王手！`, "請應將", "王");
   else
     status(
-      `${sideWord} · ${profiles[p.turn].name}`,
+      `${sideWord} · ${players[p.turn].name}`,
       "",
       p.turn ? "☖" : "☗",
     );
-  for (const b of board.buttons) b.disabled = !canPlay();
-  renderHands(p);
-  highlight();
-  renderRecord();
-  renderClocks();
-  $("#undo").disabled = !game.history.length || animating;
-  $("#hint").disabled = !canPlay();
-  $("#pause").disabled = !!game.result || animating || replayIndex !== null;
-  $("#pause").querySelector("span").textContent = paused ? "繼續" : "暫停";
-  $("#resign").disabled = !!game.result || animating || replayIndex !== null;
-  $("#declare").disabled =
-    !!game.result || animating || replayIndex !== null || !isHumanTurn();
-  $("#new-game").disabled = animating;
 }
-function renderClocks() {
-  for (const side of [0, 1]) {
-    $("#clock-" + side).textContent = clock.display(side, game.position.turn);
-    $("#clock-note-" + side).textContent = clock.unlimited
-      ? ""
-      : clock.remaining[side] > 0
-        ? `讀秒 ${config.byoyomi} 秒`
-        : "正在讀秒";
+function renderAgain() {
+  const label = !online()
+    ? "再來一局"
+    : peerLeft
+      ? "對手已離開"
+      : rematch.me
+        ? "等待對手…"
+        : rematch.peer
+          ? "接受再戰"
+          : "再來一局";
+  for (const id of ["#again", "#result-again"]) {
+    const b = $(id),
+      target = $("span", b) || b;
+    target.textContent = label;
+    b.disabled = online() && (peerLeft || rematch.me);
   }
 }
+function renderHome() {
+  $("#home-name").textContent = store.profile.name;
+  renderAvatar($("#home-avatar"), store.profile);
+  $("#local-me").textContent = store.profile.name;
+  renderAvatar($("#local-avatar"), store.profile);
+}
+
 function stopJobs() {
   clearTimeout(aiTimer);
   aiTimer = null;
@@ -423,12 +595,12 @@ function stopJobs() {
   aiThinking = hintThinking = false;
 }
 function setPaused(value) {
+  if (!offline() || (value && game.result)) return;
   tick();
   paused = value;
   lastTick = Date.now();
   if (value) stopJobs();
   render(false);
-  save();
   if (!value) scheduleAI();
 }
 function requestSearch(kind) {
@@ -479,22 +651,22 @@ function requestSearch(kind) {
     stopJobs();
     paused = true;
     render(false);
-    toast("電腦無法載入，請重新整理或切換同機雙人模式。");
+    toast("電腦無法載入，請重新整理後再試。");
   };
   worker.postMessage({
     id,
     position: game.position,
     options: {
-      depth: kind === "hint" ? 3 : config.level,
-      timeMs: kind === "hint" ? 1400 : [0, 200, 750, 1700][config.level],
+      depth: kind === "hint" ? 3 : session.level,
+      timeMs: kind === "hint" ? 1400 : [0, 200, 750, 1700][session.level],
     },
   });
 }
 function scheduleAI() {
   clearTimeout(aiTimer);
   if (
-    config.mode === "ai" &&
-    game.position.turn !== config.humanSide &&
+    session?.mode === "ai" &&
+    game.position.turn !== session.mySide &&
     !game.result &&
     !paused &&
     !animating &&
@@ -504,9 +676,7 @@ function scheduleAI() {
       if (!paused && !game.result && !animating && replayIndex === null) {
         if (declaration(game.position).eligible) {
           game.declare();
-          save();
-          render();
-          showResult();
+          finish();
         } else requestSearch("ai");
       }
     }, 300);
@@ -545,152 +715,177 @@ function onSquare(i) {
     );
   }
 }
-async function executeMove(move) {
+async function executeMove(move, remote = null) {
   if (game.result || animating || paused || replayIndex !== null) return;
   tick();
   if (game.result) return;
   const before = game.position,
     side = before.turn,
+    ply = game.history.length,
     token = epoch;
   const snapshot = { clock: clock.serialize(), base: turnUsedBase.slice() };
-  let record;
   try {
-    record = game.play(move);
+    game.play(move);
   } catch (error) {
-    toast(error.message);
+    if (!remote) toast(error.message);
     return;
   }
   stopJobs();
   clockHistory.push(snapshot);
-  durations.push(clock.used[side] - turnUsedBase[side]);
+  durations.push(remote ? remote.spent : clock.used[side] - turnUsedBase[side]);
   turnUsedBase[side] = clock.used[side];
   clock.nextTurn();
+  remoteFlagAt = null;
+  if (online() && !remote)
+    net?.send("move", {
+      n: ply,
+      move: {
+        from: move.from,
+        to: move.to,
+        drop: move.drop,
+        promote: move.promote,
+      },
+      spent: durations.at(-1),
+      clock: { remaining: clock.remaining[side], used: clock.used[side] },
+    });
   selection = null;
   promotionMoves = null;
   animating = true;
   lastTick = Date.now();
   render(false);
-  save();
   const duration =
-    !prefs.animation || matchMedia("(prefers-reduced-motion: reduce)").matches
+    !store.prefs.animation ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches
       ? 1
-      : prefs.speed;
+      : store.prefs.speed;
   await board.animate(before, move, { duration, onLand: playSound });
   if (token !== epoch) return;
   animating = false;
   lastTick = Date.now();
   render();
-  save();
-  if (game.result) showResult();
+  if (game.result) finish();
   else scheduleAI();
+  const next = pendingRemote.shift();
+  if (next) onlineMessage(next);
 }
 function tick() {
   const now = Date.now(),
     dt = Math.max(0, now - lastTick);
   lastTick = now;
-  if (!paused && !animating && replayIndex === null && !game.result) {
-    if (clock.charge(game.position.turn, dt)) {
-      game.result = { winner: 1 - game.position.turn, reason: "timeout" };
-      stopJobs();
-      if ($("#promote-dialog").open) $("#promote-dialog").close();
-      promotionMoves = null;
-      selection = null;
-      render(false);
-      save();
-      showResult();
+  if (!gameActive() || paused || animating || replayIndex !== null) return;
+  const side = game.position.turn;
+  if (clock.charge(side, dt)) {
+    if (online() && side !== session.mySide) {
+      remoteFlagAt ??= now;
+      if (now - remoteFlagAt < 15000) return renderClocks();
+      game.result = { winner: session.mySide, reason: "timeout" };
+    } else {
+      game.result = { winner: 1 - side, reason: "timeout" };
+      if (online()) net?.send("timeout");
     }
+    stopJobs();
+    if ($("#promote-dialog").open) $("#promote-dialog").close();
+    promotionMoves = null;
+    selection = null;
+    finish();
   }
   renderClocks();
 }
 setInterval(() => {
   tick();
-  if (Date.now() - lastSave > 5000) {
-    lastSave = Date.now();
-    save();
+  if (online() && peerLostAt && gameActive()) {
+    if (Date.now() - peerLostAt > PEER_GRACE) {
+      game.result = { winner: session.mySide, reason: "disconnect" };
+      finish();
+    } else renderStatus(currentPosition());
   }
 }, 200);
-window.addEventListener("pagehide", () => {
-  tick();
-  save();
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && offline() && gameActive() && !paused) setPaused(true);
 });
+window.addEventListener("beforeunload", (e) => {
+  if (gameActive() && game.history.length) e.preventDefault();
+});
+window.addEventListener("pagehide", () => {
+  if (online() && gameActive()) net?.send("resign");
+});
+
+function finish() {
+  stopJobs();
+  render();
+  showResult();
+}
 const reasonText = (reason) =>
   ({
     checkmate: "詰み：玉將已無法解除王手。",
     "no-legal-move": "已無合法指手。",
-    resign: "一方投了，感謝這一局的陪伴。",
+    resign: "一方投了。",
     timeout: "對局時間與讀秒已用盡。",
-    repetition: "相同棋盤、持駒與手番出現四次，可換先後手重賽。",
+    repetition: "相同棋盤、持駒與手番出現四次。",
     "perpetual-check": "連續王手造成千日手，持續王手的一方判負。",
     declaration: "符合業餘 27 點制的入玉宣言條件。",
     "invalid-declaration": "入玉宣言條件不足，宣言方判負。",
-    "move-limit": "已達 500 手且無王手，判持將棋，可換先後手重賽。",
+    "move-limit": "已達 500 手且無王手，判持將棋。",
+    disconnect: "對手連線中斷。",
   })[reason] || "對局已結束。";
 function resultTitle() {
-  return game.result?.winner === null
-    ? "無勝負 · 指し直し"
-    : `${profiles[game.result?.winner ?? 0].name}獲勝`;
+  const w = game.result?.winner;
+  if (w === null) return "無勝負 · 指し直し";
+  if (session.mode === "local") return `${players[w].name}獲勝`;
+  return w === session.mySide ? "勝利" : "敗北";
 }
 function showResult() {
   if (!game.result || resultShown) return;
   resultShown = true;
-  $("#result-seal").textContent = game.result.winner === null ? "和" : "勝";
+  const w = game.result.winner;
+  $("#result-seal").textContent =
+    w === null ? "和" : session.mode === "local" || w === session.mySide ? "勝" : "負";
+  $("#result-seal").classList.toggle(
+    "lose",
+    w !== null && session.mode !== "local" && w !== session.mySide,
+  );
   $("#result-title").textContent = resultTitle();
   $("#result-detail").textContent =
     `共 ${game.history.length} 手。${reasonText(game.result.reason)}`;
+  renderAgain();
   $("#result-dialog").showModal();
 }
 function replay(index) {
-  if (animating) return;
-  tick();
-  stopJobs();
+  if (animating || !game.result) return;
   selection = null;
   replayIndex = Math.max(0, Math.min(game.history.length, index));
-  navigate("play");
+  if (replayIndex === game.history.length) replayIndex = null;
   render();
-}
-function returnLive() {
-  replayIndex = null;
-  selection = null;
-  paused = false;
-  lastTick = Date.now();
-  render();
-  scheduleAI();
 }
 $("#replay-start").onclick = () => replay(0);
-$("#review-initial").onclick = () => replay(0);
 $("#replay-prev").onclick = () =>
   replay((replayIndex ?? game.history.length) - 1);
-$("#replay-next").onclick = () => {
-  const next = (replayIndex ?? game.history.length) + 1;
-  if (next >= game.history.length) returnLive();
-  else replay(next);
-};
-$("#replay-end").onclick = $("#return-live").onclick = returnLive;
+$("#replay-next").onclick = () =>
+  replay((replayIndex ?? game.history.length) + 1);
+$("#replay-end").onclick = () => replay(game.history.length);
 $("#pause").onclick = () => setPaused(!paused);
 $("#resume").onclick = () => setPaused(false);
 $("#undo").onclick = () => {
-  if (animating || !game.history.length) return;
+  if (!offline() || animating || !game.history.length) return;
   tick();
   stopJobs();
-  replayIndex = null;
   selection = null;
   do {
     const saved = clockHistory.pop();
     game.undo();
     durations.pop();
     if (saved) {
-      clock = new GameClock(config.main, config.byoyomi, saved.clock);
+      clock = new GameClock(session.main, session.byoyomi, saved.clock);
       turnUsedBase = saved.base;
     }
   } while (
-    config.mode === "ai" &&
+    session.mode === "ai" &&
     game.history.length &&
-    game.position.turn !== config.humanSide
+    game.position.turn !== session.mySide
   );
   resultShown = false;
   lastTick = Date.now();
   render();
-  save();
   scheduleAI();
   toast("已回到上一個可以思考的局面。");
 };
@@ -706,20 +901,14 @@ function confirmAction(title, description, action) {
   $("#confirm-dialog").showModal();
 }
 $("#resign").onclick = () => {
-  const side = config.mode === "ai" ? config.humanSide : game.position.turn;
-  confirmAction(
-    "要投了嗎？",
-    `${profiles[side].name}將認輸並結束本局。`,
-    () => {
-      tick();
-      if (game.result) return;
-      stopJobs();
-      game.resign(side);
-      save();
-      render();
-      showResult();
-    },
-  );
+  const side = session.mode === "local" ? game.position.turn : session.mySide;
+  confirmAction("要投了嗎？", `${players[side].name}將認輸並結束本局。`, () => {
+    tick();
+    if (game.result) return;
+    game.resign(side);
+    if (online()) net?.send("resign");
+    finish();
+  });
 };
 $("#declare").onclick = () => {
   const d = declaration(game.position);
@@ -728,12 +917,11 @@ $("#declare").onclick = () => {
     `敵陣棋子 ${d.count} 枚（需 10 枚），目前 ${d.points} 點（需 ${d.required} 點）。${d.eligible ? "目前符合宣言條件。" : "目前不符合全部條件，宣言將判負。"}`,
     () => {
       tick();
-      if (game.result) return;
+      if (game.result || !isHumanTurn()) return;
+      const n = game.history.length;
       game.declare();
-      stopJobs();
-      save();
-      render();
-      showResult();
+      if (online()) net?.send("declare", { n });
+      finish();
     },
   );
 };
@@ -760,105 +948,344 @@ document.addEventListener("keydown", (e) => {
     render(false);
   }
 });
-let pendingRematchSwap = false;
-function openNew(swap = false) {
-  if (animating) return;
-  pendingRematchSwap = swap === true;
-  setPaused(true);
-  $("#new-mode").value = config.mode;
-  $("#new-side").value = pendingRematchSwap
-    ? 1 - config.humanSide
-    : config.humanSide;
-  $("#new-level").value = config.level;
-  $("#new-time").value = config.main ? `${config.main}:${config.byoyomi}` : "0";
-  updateModeFields();
-  navigate("new");
-}
-function updateModeFields() {
-  const isAI = $("#new-mode").value === "ai";
-  $("#new-side").disabled = $("#new-level").disabled = !isAI;
-}
-$("#new-mode").onchange = updateModeFields;
-$("#new-game").onclick = () => openNew();
-$("#new-form").onsubmit = (e) => {
-  e.preventDefault();
-  const mode = $("#new-mode").value,
-    humanSide = Number($("#new-side").value);
-  if (
-    (mode === "ai" && config.mode === "ai" && humanSide !== config.humanSide) ||
-    (mode === "local" && pendingRematchSwap)
-  )
-    profiles.reverse();
-  pendingRematchSwap = false;
-  const [main = 0, byoyomi = 0] = $("#new-time").value.split(":").map(Number);
-  config = {
-    mode,
-    humanSide,
-    level: Number($("#new-level").value),
-    main,
-    byoyomi,
-  };
-  epoch++;
-  stopJobs();
-  board.cancel();
-  game = new Game();
-  clock = new GameClock(main, byoyomi);
-  durations = [];
-  clockHistory = [];
-  turnUsedBase = [0, 0];
-  selection = null;
-  paused = false;
-  replayIndex = null;
-  animating = false;
-  resultShown = false;
-  lastTick = Date.now();
-  navigate("play");
-  render();
-  save();
-  scheduleAI();
-};
-$("#result-new").onclick = () => {
+function playAgain() {
   $("#result-dialog").close();
-  openNew(game.result?.winner === null);
-};
-$("#result-review").onclick = () => {
+  if (!online()) return session.mode === "ai" ? startCpu() : startLocal();
+  if (peerLeft || rematch.me) return;
+  rematch.me = true;
+  net.send("rematch");
+  if (rematch.peer) net.restart();
+  renderAgain();
+}
+$("#again").onclick = $("#result-again").onclick = playAgain;
+$("#result-review").onclick = () => $("#result-dialog").close();
+$("#go-home").onclick = $("#result-home").onclick = () => {
   $("#result-dialog").close();
-  replay(game.history.length);
+  navigate("home");
+};
+$("#export-record").onclick = () => {
+  const url = URL.createObjectURL(
+      new Blob([exportKIF(game, players, durations)], {
+        type: "text/plain;charset=utf-8",
+      }),
+    ),
+    a = document.createElement("a");
+  a.href = url;
+  a.download = `sakurama-${new Date().toISOString().slice(0, 10)}.kif`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
 $$("[data-page-link]").forEach(
   (b) => (b.onclick = () => navigate(b.dataset.pageLink)),
 );
-$("#continue-game").onclick = () => {
-  replayIndex = null;
-  navigate("play");
-  setPaused(false);
+$(".brand").onclick = (e) => {
+  e.preventDefault();
+  navigate("home");
 };
-$("#settings-open").onclick = () => {
-  navigate("settings");
+
+function publicProfile() {
+  const p = store.profile;
+  return { name: p.name, avatar: p.avatar.length < 60000 ? p.avatar : "" };
+}
+function createNet() {
+  net = new OnlineRoom(store.broker);
+  net.on("status", (value) => {
+    netStatus = value;
+    renderNet();
+    if (online()) render(false);
+  });
+  net.on("start", onlineStart);
+  net.on("message", onlineMessage);
+  net.on("peer", (isOnline) => {
+    if (!online()) return;
+    if (isOnline) peerBack();
+    else if (!game.result) {
+      peerLostAt ??= Date.now();
+      render(false);
+    } else {
+      peerLeft = true;
+      renderAgain();
+    }
+  });
+  net.on("reconnected", () => {
+    if (online()) net.send("hello", { n: game.history.length });
+  });
+}
+function closeNet() {
+  net?.close();
+  net = null;
+  netStatus = "idle";
+  renderNet();
+}
+function setLobby(state) {
+  $("#online-page").dataset.state = state;
+}
+function enterLobby() {
+  setLobby("lobby");
+  $("#join-error").textContent = "";
+  if (!net) createNet();
+  net.connect().catch(() => {});
+}
+function renderNet() {
+  const el = $("#net-status");
+  el.dataset.state = netStatus;
+  $("#net-text").textContent =
+    {
+      idle: "尚未連線",
+      connecting: "連線伺服器中…",
+      online: "已連線",
+      offline: "連線中斷，重新連線中…",
+      error: "無法連線到伺服器",
+    }[netStatus] || "";
+  $("#net-retry").hidden = netStatus !== "error";
+  $("#room-create").disabled = $("#room-join").disabled =
+    netStatus !== "online";
+}
+$("#net-retry").onclick = () => {
+  closeNet();
+  enterLobby();
 };
-$("#rules-open").onclick = () => {
-  navigate("rules");
+$("#create-form").onsubmit = async (e) => {
+  e.preventDefault();
+  store.room = { time: radio("room-time"), side: radio("room-side") };
+  persist();
+  try {
+    const code = await net.create({
+      time: TIMES[store.room.time],
+      side: store.room.side,
+      player: publicProfile(),
+    });
+    $("#room-code-display").textContent = code;
+    $("#room-rule").textContent =
+      `${$(`input[name="room-time"]:checked + span`).firstChild.textContent} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
+    setLobby("waiting");
+  } catch {
+    toast("建立房間失敗，請稍後再試。");
+  }
 };
-$("#animation-setting").checked = prefs.animation;
-$("#speed-setting").value = prefs.speed;
-$("#legal-setting").checked = prefs.legal;
+$("#room-code-input").oninput = (e) => {
+  e.target.value = cleanRoomCode(e.target.value);
+  $("#join-error").textContent = "";
+};
+$("#join-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const code = cleanRoomCode($("#room-code-input").value);
+  if (code.length !== 5) {
+    $("#join-error").textContent = "請輸入 5 碼房號。";
+    return;
+  }
+  setLobby("joining");
+  try {
+    await net.join(code, publicProfile());
+  } catch (error) {
+    setLobby("lobby");
+    $("#join-error").textContent =
+      {
+        "not-found": "找不到這個房間。",
+        full: "房間已經開始對局。",
+        "no-response": "房主沒有回應。",
+      }[error.message] || "加入失敗，請稍後再試。";
+  }
+};
+$("#room-copy").onclick = async () => {
+  try {
+    await navigator.clipboard.writeText($("#room-code-display").textContent);
+    toast("已複製房號。");
+  } catch {
+    toast("無法複製，請手動記下房號。");
+  }
+};
+$("#room-cancel").onclick = async () => {
+  await net?.cancel();
+  setLobby("lobby");
+};
+function onlineStart(detail) {
+  const time = Array.isArray(detail.time) ? detail.time : [0, 0];
+  const [main, byoyomi] = Object.values(TIMES).find(
+    (t) => t[0] === time[0] && t[1] === time[1],
+  ) || [0, 0];
+  const opponent = cleanProfile(detail.opponent, { name: "對手", avatar: "" });
+  const mySide = detail.mySide === 1 ? 1 : 0;
+  startGame({
+    mode: "online",
+    mySide,
+    main,
+    byoyomi,
+    code: detail.code,
+    players: mySide ? [opponent, store.profile] : [store.profile, opponent],
+  });
+  toast(detail.game > 1 ? "再戰開始！" : "對局開始！");
+}
+function peerBack() {
+  if (!peerLostAt) return;
+  peerLostAt = null;
+  render(false);
+  toast("對手已重新連線。");
+}
+const validMove = (m) =>
+  m &&
+  Number.isInteger(m.to) &&
+  m.to >= 0 &&
+  m.to < 81 &&
+  (m.drop ? HAND_TYPES.includes(m.drop) : Number.isInteger(m.from));
+function applyRemoteClock(side, data) {
+  if (!data) return;
+  const { remaining, used } = data;
+  if (Number.isFinite(remaining) && remaining >= 0)
+    clock.remaining[side] = remaining;
+  if (Number.isFinite(used) && used >= 0) clock.used[side] = used;
+}
+function onlineMessage(msg) {
+  if (!online()) return;
+  peerBack();
+  const opp = 1 - session.mySide;
+  if (msg.t === "rematch") {
+    rematch.peer = true;
+    if (rematch.me) net.restart();
+    else toast("對手想再來一局。");
+    renderAgain();
+    return;
+  }
+  if (msg.t === "leave") {
+    peerLeft = true;
+    renderAgain();
+    if (game.result) toast("對手已離開房間。");
+    return;
+  }
+  if (msg.g !== net.game) return;
+  if (msg.t === "hello") {
+    if (game.history.length > msg.n)
+      net.send("sync", {
+        n: msg.n,
+        moves: game.history.slice(msg.n).map((h) => h.move),
+        clock: clock.serialize(),
+        result: game.result,
+      });
+    return;
+  }
+  if (msg.t === "sync") return applySync(msg);
+  if (game.result) return;
+  if (msg.t === "move") {
+    if (!validMove(msg.move) || game.position.turn !== opp) return;
+    if (msg.n > game.history.length) {
+      net.send("hello", { n: game.history.length });
+      return;
+    }
+    if (animating) {
+      pendingRemote.push(msg);
+      return;
+    }
+    if (msg.n !== game.history.length) return;
+    tick();
+    applyRemoteClock(opp, msg.clock);
+    executeMove(msg.move, {
+      spent: Number.isFinite(msg.spent) ? msg.spent : 0,
+    });
+  } else if (msg.t === "resign") {
+    game.resign(opp);
+    finish();
+  } else if (msg.t === "timeout") {
+    game.result = { winner: session.mySide, reason: "timeout" };
+    finish();
+  } else if (
+    msg.t === "declare" &&
+    msg.n === game.history.length &&
+    game.position.turn === opp
+  ) {
+    game.declare();
+    finish();
+  }
+}
+function applySync(msg) {
+  if (!Array.isArray(msg.moves) || !Number.isInteger(msg.n)) return;
+  const skip = game.history.length - msg.n;
+  if (skip < 0 || animating) return;
+  let changed = false;
+  for (const move of msg.moves.slice(skip)) {
+    if (!validMove(move)) break;
+    try {
+      game.play(move);
+      durations.push(0);
+      changed = true;
+    } catch {
+      break;
+    }
+  }
+  const opp = 1 - session.mySide;
+  applyRemoteClock(opp, {
+    remaining: msg.clock?.remaining?.[opp],
+    used: msg.clock?.used?.[opp],
+  });
+  if (
+    !game.result &&
+    msg.result &&
+    [0, 1, null].includes(msg.result.winner) &&
+    ["resign", "timeout", "declaration", "invalid-declaration"].includes(
+      msg.result.reason,
+    )
+  )
+    game.result = msg.result;
+  if (changed || game.result) {
+    lastTick = Date.now();
+    render();
+    if (game.result) finish();
+  }
+}
+
+$("#settings-open").onclick = () => openSettings();
+$("#profile-edit").onclick = () => openSettings("profile");
+let settingsPaused = false;
+function openSettings(tab = "profile") {
+  if (offline() && gameActive() && !paused) {
+    setPaused(true);
+    settingsPaused = true;
+  }
+  showTab(tab);
+  loadProfileDraft();
+  $("#broker-url").value = store.broker;
+  $("#broker-error").textContent = "";
+  $("#settings-dialog").showModal();
+}
+$("#settings-close").onclick = () => $("#settings-dialog").close();
+$("#settings-dialog").addEventListener("close", () => {
+  if (settingsPaused) {
+    settingsPaused = false;
+    setPaused(false);
+  }
+});
+function showTab(tab) {
+  for (const b of $$("[data-tab]"))
+    b.setAttribute("aria-selected", b.dataset.tab === tab);
+  for (const panel of $$("[data-panel]"))
+    panel.hidden = panel.dataset.panel !== tab;
+}
+$$("[data-tab]").forEach((b) => (b.onclick = () => showTab(b.dataset.tab)));
 $("#animation-setting").onchange = (e) => {
-  prefs.animation = e.target.checked;
-  save();
+  store.prefs.animation = e.target.checked;
+  persist();
 };
 $("#speed-setting").onchange = (e) => {
-  prefs.speed = Number(e.target.value);
-  save();
+  store.prefs.speed = Number(e.target.value);
+  persist();
 };
 $("#legal-setting").onchange = (e) => {
-  prefs.legal = e.target.checked;
-  highlight();
-  save();
+  store.prefs.legal = e.target.checked;
+  if (session) highlight();
+  persist();
 };
 function applyPreferences() {
+  const prefs = store.prefs;
   document.body.dataset.theme = prefs.theme;
+  $('meta[name="theme-color"]').content = {
+    spring: "#fbeff3",
+    sunset: "#1b1210",
+    night: "#090c17",
+  }[prefs.theme];
   board.setTheme(prefs.theme);
   board.setShadows(prefs.shadows);
+  $("#animation-setting").checked = prefs.animation;
+  $("#speed-setting").value = prefs.speed;
+  $("#legal-setting").checked = prefs.legal;
   $$(".themes [data-theme]").forEach((b) =>
     b.classList.toggle("selected", b.dataset.theme === prefs.theme),
   );
@@ -870,28 +1297,59 @@ function applyPreferences() {
 $$(".themes [data-theme]").forEach(
   (b) =>
     (b.onclick = () => {
-      prefs.theme = b.dataset.theme;
+      store.prefs.theme = b.dataset.theme;
       applyPreferences();
-      save();
+      persist();
     }),
 );
 $("#sound-toggle").onclick = () => {
-  prefs.sound = !prefs.sound;
+  store.prefs.sound = !store.prefs.sound;
   applyPreferences();
-  save();
-  if (prefs.sound) playSound();
+  persist();
+  if (store.prefs.sound) playSound();
 };
 $("#shadow-toggle").onclick = () => {
-  prefs.shadows = !prefs.shadows;
+  store.prefs.shadows = !store.prefs.shadows;
   applyPreferences();
-  save();
+  persist();
 };
-let audio;
+let audio, komaBuffer, komaLoading;
+function audioContext() {
+  audio ??= new AudioContext();
+  if (audio.state === "suspended") audio.resume();
+  return audio;
+}
+function loadKoma() {
+  komaLoading ??= fetch("assets/sounds/koma-strong.mp3")
+    .then((r) => {
+      if (!r.ok) throw new Error(r.status);
+      return r.arrayBuffer();
+    })
+    .then((data) => audioContext().decodeAudioData(data))
+    .then((buffer) => (komaBuffer = buffer))
+    .catch(() => null);
+  return komaLoading;
+}
+document.addEventListener(
+  "pointerdown",
+  () => {
+    if (store.prefs.sound) loadKoma();
+  },
+  { once: true },
+);
 function playSound() {
-  if (!prefs.sound) return;
+  if (!store.prefs.sound) return;
   try {
-    audio ??= new AudioContext();
-    if (audio.state === "suspended") audio.resume();
+    audioContext();
+    if (komaBuffer) {
+      const source = audio.createBufferSource();
+      source.buffer = komaBuffer;
+      source.playbackRate.value = 0.96 + Math.random() * 0.08;
+      source.connect(audio.destination);
+      source.start();
+      return;
+    }
+    loadKoma();
     const osc = audio.createOscillator(),
       gain = audio.createGain();
     osc.type = "triangle";
@@ -904,35 +1362,25 @@ function playSound() {
     osc.stop(audio.currentTime + 0.14);
   } catch {}
 }
-let editingSide = 0,
-  draftAvatar = "",
+let draftAvatar = "",
   uploadJob = 0;
-$$("[data-profile]").forEach(
-  (b) =>
-    (b.onclick = () => {
-      setPaused(true);
-      editingSide = Number(b.dataset.profile);
-      draftAvatar = profiles[editingSide].avatar;
-      $("#profile-name").value = profiles[editingSide].name;
-      $("#profile-error").textContent = "";
-      $("#avatar-file").value = "";
-      renderAvatar($("#profile-avatar"), profiles[editingSide]);
-      navigate("profile");
-    }),
-);
-$("#profile-name").oninput = () =>
+function loadProfileDraft() {
+  draftAvatar = store.profile.avatar;
+  $("#profile-name").value = store.profile.name;
+  $("#profile-error").textContent = "";
+  $("#avatar-file").value = "";
+  renderAvatar($("#profile-avatar"), store.profile);
+}
+const draftPreview = () =>
   renderAvatar($("#profile-avatar"), {
     name: $("#profile-name").value || "棋",
     avatar: draftAvatar,
   });
+$("#profile-name").oninput = draftPreview;
 $("#avatar-reset").onclick = () => {
   uploadJob++;
-  draftAvatar =
-    config.mode === "ai" && editingSide !== config.humanSide ? "koharu" : "";
-  renderAvatar($("#profile-avatar"), {
-    name: $("#profile-name").value || "棋",
-    avatar: draftAvatar,
-  });
+  draftAvatar = "";
+  draftPreview();
 };
 $("#avatar-file").onchange = async (e) => {
   const file = e.target.files?.[0];
@@ -954,7 +1402,7 @@ $("#avatar-file").onchange = async (e) => {
     await img.decode();
     if (id !== uploadJob) return;
     const c = document.createElement("canvas");
-    c.width = c.height = 192;
+    c.width = c.height = 160;
     const ctx = c.getContext("2d"),
       size = Math.min(img.width, img.height);
     ctx.drawImage(
@@ -965,16 +1413,13 @@ $("#avatar-file").onchange = async (e) => {
       size,
       0,
       0,
-      192,
-      192,
+      160,
+      160,
     );
-    draftAvatar = c.toDataURL("image/webp", 0.88);
-    renderAvatar($("#profile-avatar"), {
-      name: $("#profile-name").value || "棋",
-      avatar: draftAvatar,
-    });
+    draftAvatar = c.toDataURL("image/webp", 0.82);
+    draftPreview();
   } catch {
-    $("#profile-error").textContent = "無法讀取這张圖片，請換一張再試。";
+    $("#profile-error").textContent = "無法讀取這張圖片，請換一張再試。";
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -986,24 +1431,33 @@ $("#profile-form").onsubmit = (e) => {
     $("#profile-error").textContent = "請輸入顯示名稱。";
     return;
   }
-  profiles[editingSide] = { name: name.slice(0, 20), avatar: draftAvatar };
-  navigate("players");
+  store.profile = { name: name.slice(0, 20), avatar: draftAvatar };
+  persist();
+  if (offline()) players[session.mode === "ai" ? session.mySide : 0] = store.profile;
+  renderHome();
   render(false);
-  save();
-  toast("頭像與名稱已儲存。");
+  toast("玩家資料已儲存。");
 };
-$("#export-record").onclick = () => {
-  const url = URL.createObjectURL(
-      new Blob([exportKIF(game, profiles, durations)], {
-        type: "text/plain;charset=utf-8",
-      }),
-    ),
-    a = document.createElement("a");
-  a.href = url;
-  a.download = `sakurama-${new Date().toISOString().slice(0, 10)}.kif`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+$("#network-form").onsubmit = (e) => {
+  e.preventDefault();
+  const url = $("#broker-url").value.trim();
+  if (!/^wss?:\/\/\S+$/.test(url)) {
+    $("#broker-error").textContent = "請輸入 ws:// 或 wss:// 開頭的網址。";
+    return;
+  }
+  store.broker = url;
+  persist();
+  $("#broker-error").textContent = "";
+  if (!online()) {
+    closeNet();
+    if (currentPage === "online") enterLobby();
+  }
+  toast(online() ? "新的伺服器會在下一局使用。" : "連線設定已儲存。");
 };
+$("#broker-reset").onclick = () => {
+  $("#broker-url").value = DEFAULT_BROKER;
+};
+
 const descriptions = {
   K: "周圍八方向一格，不能進入受攻擊格。",
   R: "沿直線任意格；成龍後加斜向一格。",
@@ -1020,9 +1474,21 @@ for (const t of ["K", "R", "B", "G", "S", "N", "L", "P"]) {
   d.innerHTML = `<span>${LABELS[t]}</span><div><strong>${NAMES[t]}</strong><p>${descriptions[t]}</p></div>`;
   $("#rules-pieces").append(d);
 }
+setRadio("cpu-level", store.cpu.level);
+setRadio("cpu-side", store.cpu.side);
+setRadio("cpu-time", store.cpu.time);
+setRadio("local-time", store.local.time);
+setRadio("room-time", store.room.time);
+setRadio("room-side", store.room.side);
+$("#local-name").value = store.local.name;
 applyPreferences();
-render();
-navigate(location.hash.slice(2) || "play", true);
-if (restored) toast("已恢復棋局與玩家資料。");
-if (game.result) showResult();
-else scheduleAI();
+renderNet();
+const startSfen = new URLSearchParams(location.search).get("sfen");
+if (startSfen) {
+  try {
+    fromSFEN(startSfen);
+    startLocal(startSfen);
+  } catch {
+    navigate("home", true);
+  }
+} else navigate(location.hash.slice(2) || "home", true);

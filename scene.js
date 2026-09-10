@@ -236,6 +236,7 @@ export class BoardScene {
       this.scene.add(hand);
     }
     this.animation = null;
+    this.flipped = false;
     this.enabled = true;
     this.shadow = true;
     this.ray = new THREE.Raycaster();
@@ -262,7 +263,8 @@ export class BoardScene {
         }[e.key];
         if (delta) {
           e.preventDefault();
-          this.buttons[Math.max(0, Math.min(80, i + delta))].focus();
+          const step = this.flipped ? -delta : delta;
+          this.buttons[Math.max(0, Math.min(80, i + step))].focus();
         }
       });
       this.overlay.append(b);
@@ -289,7 +291,11 @@ export class BoardScene {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     const target = new THREE.Vector3(0, 0.4, 0);
-    const direction = new THREE.Vector3(0, 19.6, 7.8).normalize();
+    const direction = new THREE.Vector3(
+      0,
+      19.6,
+      this.flipped ? -7.8 : 7.8,
+    ).normalize();
     let distance = 23;
     for (let n = 0; n < 6; n++) {
       this.camera.position.copy(target).addScaledVector(direction, distance);
@@ -407,13 +413,17 @@ export class BoardScene {
   }
   setTheme(theme) {
     const colors = {
-      spring: ["#fff4e1", "#ffe6bf", 1.12],
+      spring: ["#fff0f5", "#fffaf6", 1.34],
       sunset: ["#edcbba", "#ffbe87", 1.05],
       night: ["#c5cbe5", "#c3d0ff", 0.83],
     }[theme] || ["#fff4e1", "#ffe6bf", 1.12];
     this.ambient.color.set(colors[0]);
     this.sun.color.set(colors[1]);
     this.renderer.toneMappingExposure = colors[2];
+  }
+  setFlipped(flipped) {
+    this.flipped = flipped;
+    this.resize();
   }
   setShadows(on) {
     this.shadow = on;

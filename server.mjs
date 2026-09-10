@@ -5,12 +5,14 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 const root = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 4174);
+const host = process.env.HOST || "127.0.0.1";
 const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mjs": "text/javascript; charset=utf-8",
   ".png": "image/png",
+  ".mp3": "audio/mpeg",
   ".svg": "image/svg+xml",
   ".json": "application/json",
   ".glb": "model/gltf-binary",
@@ -48,8 +50,8 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(404).end("Not found");
   }
 });
-server.listen(port, "127.0.0.1", () =>
-  console.log(`Sakurama is ready: http://127.0.0.1:${port}`),
+server.listen(port, host, () =>
+  console.log(`Sakurama is ready: http://${host}:${port}`),
 );
 server.on("error", (error) => {
   console.error(
