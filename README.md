@@ -96,21 +96,44 @@ npm start
 
 ## 檔案結構
 
+```
+index.html          網頁入口（需放在根目錄）
+launch.cmd          Windows 雙擊啟動
+src/                遊戲程式
+  app.js            首頁與模式流程、對局 UI、連線同步、設定、AI 排程
+  style.css         版面與和風介面樣式
+  rules/            純規則（無 DOM／WebGL 相依）
+  ai/               電腦對手
+  online/           MQTT 連線對戰
+  scene/            3D 棋盤與和服手
+scripts/            本機伺服器與啟動腳本
+assets/             圖片與音效
+vendor/             第三方函式庫（Three.js、MQTT.js）
+docs/               功能與技術說明、瀏覽器截圖
+tests/              unit／browser／differential 三類測試
+```
+
 | 檔案 | 功能 |
 | --- | --- |
-| `engine.js` | 純將棋規則、SFEN／USI、合法步產生、終局、歷史與驗證恢復 |
-| `ai.js`、`ai-worker.js` | 限時迭代加深搜尋，在背景工作執行 |
-| `clock.js` | 主時間、每手讀秒與時間快照 |
-| `net.js` | MQTT 房間：建立／加入、訊息收發、上線狀態與遺囑訊息 |
-| `scene.js` | 固定輕微透視傾角（後手時翻轉）、3D 棋盤、棋子、合法格、光線及陰影 |
-| `hand.js` | 以距離場（SDF）＋ Surface Nets 生成一體成形的手部網格（掌骨、指節、拇指根、手腕平滑相連），自動計算蒙皮權重與指節／指尖膚色；閒置時才建模、不拖慢載入；花紋和服袖子與捏子、提子、落子、收手動畫 |
-| `app.js` | 首頁與模式流程、對局 UI、連線同步、設定、升變與終局視窗、AI 排程 |
-| `record.js` | UTF-8 KIF 匯出 |
-| `index.html`、`style.css` | 繁體中文 UI 與響應式排版（和風遊戲介面：藍、金、朱配色） |
+| `src/rules/engine.js` | 純將棋規則、SFEN／USI、合法步產生、終局、歷史與驗證恢復 |
+| `src/rules/clock.js` | 主時間、每手讀秒與時間快照 |
+| `src/rules/record.js` | UTF-8 KIF 匯出 |
+| `src/ai/ai.js`、`src/ai/ai-worker.js` | 限時迭代加深搜尋，在背景工作執行 |
+| `src/online/net.js` | MQTT 房間：建立／加入、訊息收發、上線狀態與遺囑訊息 |
+| `src/scene/scene.js` | 固定輕微透視傾角（後手時翻轉）、3D 棋盤、棋子、合法格、光線及陰影 |
+| `src/scene/hand.js` | 以距離場（SDF）＋ Surface Nets 生成一體成形的手部網格（掌骨、指節、拇指根、手腕平滑相連），自動計算蒙皮權重與指節／指尖膚色；閒置時才建模、不拖慢載入；花紋和服袖子與捏子、提子、落子、收手動畫 |
+| `src/app.js` | 首頁與模式流程、對局 UI、連線同步、設定、升變與終局視窗、AI 排程 |
+| `index.html`、`src/style.css` | 繁體中文 UI 與響應式排版（和風遊戲介面：藍、金、朱配色） |
+| `scripts/server.mjs` | 零依賴靜態檔案伺服器（`npm start`） |
+| `scripts/start.ps1` | 由 `launch.cmd` 呼叫：必要時啟動伺服器並開啟瀏覽器 |
 | `assets/sounds/koma-strong.mp3` | 落子音效（使用者提供的「将棋・駒を強めに指す03」），棋子落下時播放，載入失敗時改用合成音 |
-| `assets/koharu.png` | 前一版由內建 image_gen 生成的原創角色圖，用於首頁、電腦對手與預設頭像 |
+| `assets/images/koharu.png` | 前一版由內建 image_gen 生成的原創角色圖，用於首頁、電腦對手與預設頭像 |
 | `vendor/` | 本地 Three.js 0.180.0（`LICENSE`）與 MQTT.js 5.15.2 瀏覽器 ES 模組（`LICENSE-mqtt.md`），皆為 MIT 授權 |
-| `preview/` | 實際瀏覽器截圖與測試棋譜 |
+| `docs/OVERVIEW.md` | 支援設備、玩法、電腦對手與 MQTT 技術說明 |
+| `docs/preview/` | 實際瀏覽器截圖與測試棋譜（瀏覽器測試會自動更新） |
+| `tests/unit/` | 規則與計時單元測試（`npm test`） |
+| `tests/browser/` | Edge headless 介面、流程與連線對戰測試 |
+| `tests/differential/` | 與 python-shogi 交叉比對合法步 |
 
 棋盤使用索引 `row × 9 + column`；先手 side=0、向上，後手 side=1、向下。規則引擎沒有 WebGL 或 DOM 相依，可獨立測試與重用。
 
@@ -129,7 +152,7 @@ npm test
 
 ```sh
 npm run test:browser
-node tests/edge-browser.mjs
+node tests/browser/edge-browser.mjs
 npm run test:online
 ```
 
@@ -140,9 +163,9 @@ npm run test:online
 另與獨立套件 python-shogi 1.1.1 比對 **1,736 個種子生成的中盤局面**，每一局面的合法步集合均一致：
 
 ```sh
-node tests/differential-fixtures.mjs
+node tests/differential/differential-fixtures.mjs
 python -m pip install python-shogi==1.1.1
-python tests/differential.py
+python tests/differential/differential.py
 ```
 
 Python 套件僅用於獨立交叉驗證，不是遊戲執行依賴。包含升變與打入的 KIF 已經由獨立 KIF 讀取器驗證。
