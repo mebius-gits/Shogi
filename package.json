@@ -1,0 +1,14 @@
+{
+  "name": "sakurama-shogi",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

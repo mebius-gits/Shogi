@@ -1,0 +1,458 @@
+/* Separate pages keep the playing surface focused on the game. */
+[hidden] {
+  display: none !important;
+}
+.header {
+  height: 72px;
+  padding: 0 5%;
+}
+.app-pages {
+  max-width: 1120px;
+  padding: 18px 24px 32px;
+  margin: auto;
+}
+.route-page:not(#play-page) {
+  max-width: 600px;
+  margin: 12px auto;
+  padding: 20px 30px 32px;
+}
+.page-back {
+  background: none;
+  border: 0;
+  color: var(--muted);
+  padding: 8px 0;
+  margin-bottom: 26px;
+}
+.page-title {
+  margin-bottom: 28px;
+}
+.page-title h1 {
+  font-size: 30px;
+  margin: 10px 0 14px;
+}
+.page-title p,
+.page-title small {
+  color: var(--muted);
+  line-height: 1.8;
+}
+.menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0 26px;
+}
+.menu-grid button {
+  border: 1px solid var(--line);
+  background: #fff9;
+  padding: 22px;
+  text-align: left;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.menu-grid button:hover {
+  background: #e8eddf;
+}
+.menu-grid button > span {
+  color: #939b85;
+  font: 12px Georgia;
+}
+.menu-grid b {
+  font-size: 17px;
+  font-weight: 500;
+}
+.menu-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
+}
+.session-actions span,
+.save-caption {
+  font-size: 12px;
+  color: var(--muted);
+}
+.session-actions button {
+  border: 0;
+  background: transparent;
+  padding: 8px;
+}
+.profile-choices {
+  display: grid;
+  gap: 16px;
+}
+.profile-choice {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  background: #fff9;
+  text-align: left;
+}
+.profile-choice > span {
+  display: grid;
+  gap: 8px;
+}
+.profile-choice i {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 12px;
+}
+.profile-choice small {
+  color: var(--muted);
+}
+#settings-page .ambience {
+  margin-top: 28px;
+  padding: 22px 0;
+  border-top: 1px solid var(--line);
+}
+#record-page .record-card {
+  margin-top: 20px;
+}
+#record-page #move-list {
+  max-height: 55dvh;
+  height: min(55dvh, 480px);
+}
+#play-page {
+  max-width: 1060px;
+  margin: auto;
+}
+#play-page .board-toolbar {
+  padding: 0 80px 10px;
+  min-height: 24px;
+  font-size: 11px;
+}
+.play-layout {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 112px;
+  gap: 15px;
+  align-items: center;
+}
+.play-center {
+  min-width: 0;
+}
+.player-strip.player-card {
+  position: static;
+  width: auto;
+  margin: 0;
+  padding: 18px 5px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+}
+.player-strip .card-top {
+  margin: 0;
+}
+.player-strip .side-label {
+  font-size: 10px;
+  writing-mode: horizontal-tb;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.player-strip .side-label i {
+  display: none;
+}
+.player-strip .player-identity {
+  margin: 0;
+  padding: 0;
+  gap: 10px;
+  flex-direction: column;
+  text-align: center;
+}
+.player-strip .avatar {
+  width: 68px;
+  height: 68px;
+  min-width: 68px;
+  font-size: 20px;
+}
+.player-strip h2 {
+  font-size: 14px;
+  margin: 0;
+  max-width: 102px;
+  overflow-wrap: anywhere;
+}
+.player-strip .player-note,
+.player-strip .clock-line > span {
+  display: none;
+}
+.player-strip .clock-line {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.player-strip .clock-line strong {
+  font-size: 24px;
+}
+.player-strip .player-footer {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  font-size: 10px;
+}
+.player-strip .turn-lamp {
+  display: none;
+}
+.player-strip.active .avatar {
+  outline: 2px solid #899b70;
+  outline-offset: 3px;
+}
+#board-stage.board-stage {
+  height: min(calc(100dvh - 260px), 720px);
+  min-height: 440px;
+  aspect-ratio: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px #4b483d18;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+#board-stage #board-canvas {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.capture-dock {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 8px 12px 12px;
+  background: repeating-linear-gradient(
+    0deg,
+    #aeb391 0px,
+    #aeb391 2px,
+    #bcc09e 3px,
+    #bcc09e 4px
+  );
+}
+.capture-rail {
+  background: linear-gradient(90deg, #c5996099, #e1b97b99 45%, #bf925d99);
+  border: 1px solid #ba955a70;
+  border-radius: 7px;
+  padding: 7px 8px;
+  min-width: 0;
+  box-shadow: 0 4px 8px #46372216;
+}
+.capture-rail .section-label {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 5px;
+  margin-bottom: 5px;
+  font-size: 10px;
+  white-space: nowrap;
+  letter-spacing: 1px;
+}
+.capture-rail .section-label b {
+  margin: 0;
+  font-size: 9px;
+  font-weight: 400;
+}
+.capture-rail .hand-tray {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 40px));
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  min-height: 0;
+}
+.capture-rail .hand-piece {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 39px;
+  margin: 0;
+  padding: 0;
+  border-radius: 3px;
+  position: relative;
+}
+.capture-rail .hand-piece span {
+  font-size: 24px;
+  width: 100%;
+  height: 100%;
+}
+.capture-rail .hand-piece b {
+  right: -2px;
+  bottom: -1px;
+  min-width: 17px;
+  height: 17px;
+  font-size: 10px;
+  z-index: 2;
+}
+.rail-1 .hand-piece span {
+  transform: rotate(180deg);
+}
+.capture-rail .hand-piece:disabled {
+  opacity: 0.3;
+}
+.capture-rail .hand-piece:has(b):disabled {
+  opacity: 0.85;
+}
+#play-page .board-status {
+  max-width: 664px;
+  margin: 6px auto 0;
+  min-height: 51px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 0;
+}
+.board-status #status-detail {
+  font-size: 11px;
+  margin-top: 3px;
+}
+#play-page .board-actions {
+  max-width: 400px;
+  margin: 2px auto 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  border: 0;
+}
+.board-actions button {
+  padding: 10px 24px;
+}
+#review-toolbar {
+  max-width: 420px;
+  margin: 10px auto;
+  text-align: center;
+}
+#review-toolbar .replay-controls {
+  margin: 0;
+}
+#return-live {
+  width: 100%;
+}
+@media (max-width: 650px) {
+  .header {
+    height: 62px;
+    padding: 0 16px;
+  }
+  .header-actions {
+    gap: 8px;
+  }
+  .header-actions button {
+    font-size: 12px;
+  }
+  .app-pages {
+    padding: 10px 10px 24px;
+  }
+  .route-page:not(#play-page) {
+    padding: 10px 12px 24px;
+    margin: 0;
+  }
+  .page-title h1 {
+    font-size: 27px;
+  }
+  .play-layout {
+    grid-template-columns: 39px minmax(0, 1fr) 39px;
+    gap: 5px;
+  }
+  #play-page .board-toolbar {
+    padding: 0 44px 4px;
+    font-size: 9px;
+  }
+  .board-toolbar .tiny-piece {
+    display: none;
+  }
+  #board-stage.board-stage {
+    height: auto;
+    min-height: 0;
+    aspect-ratio: auto;
+    border-radius: 7px;
+    grid-template-rows: auto auto auto;
+  }
+  #board-stage #board-canvas {
+    aspect-ratio: 0.94;
+  }
+  .capture-dock {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    padding: 5px;
+  }
+  .player-strip.player-card {
+    margin: 0;
+    padding: 9px 0;
+    gap: 7px;
+    min-height: 52px;
+  }
+  .player-strip .avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+  .player-strip h2 {
+    font-size: 10px;
+    max-width: 38px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+  }
+  .player-strip .player-footer {
+    display: none;
+  }
+  .player-strip .clock-line strong {
+    font-size: 13px;
+  }
+  .player-strip .player-identity {
+    gap: 7px;
+  }
+  .capture-rail {
+    padding: 3px 5px 5px;
+    border-radius: 4px;
+  }
+  .capture-rail .section-label {
+    font-size: 8px;
+    letter-spacing: 0;
+    margin-bottom: 3px;
+    gap: 3px;
+  }
+  .capture-rail .section-label b {
+    font-size: 8px;
+  }
+  .capture-rail .hand-tray {
+    gap: 3px;
+  }
+  .capture-rail .hand-piece {
+    width: 100%;
+    height: 29px;
+  }
+  .capture-rail .hand-piece span {
+    font-size: 21px;
+  }
+  .capture-rail .hand-piece b {
+    min-width: 14px;
+    height: 14px;
+    font-size: 9px;
+  }
+  #play-page .board-status {
+    margin-top: 9px;
+    padding: 8px 12px;
+  }
+  .board-status strong {
+    font-size: 13px;
+  }
+  #play-page .board-actions button {
+    padding: 11px 20px;
+    font-size: 12px;
+  }
+  .menu-grid button {
+    padding: 18px;
+  }
+  .menu-grid small {
+    font-size: 10px;
+  }
+}
