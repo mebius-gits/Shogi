@@ -6,100 +6,496 @@ const smooth = (t) => {
   t = THREE.MathUtils.clamp(t, 0, 1);
   return t * t * (3 - 2 * t);
 };
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
-// A standalone right hand. Local origin is the grip point; +Z points to the wrist.
-export function makeHand(side = 0) {
-  const hand = new THREE.Group();
-  hand.name = "ShogiHand";
-  const skin = new THREE.MeshStandardMaterial({
-    color: "#edbba5",
-    roughness: 0.68,
-  });
-  const nails = new THREE.MeshStandardMaterial({
-    color: "#f5d2c8",
-    roughness: 0.34,
-  });
-  const cuff = new THREE.MeshStandardMaterial({
-    color: "#f0e4d2",
-    roughness: 0.9,
-  });
-  const trim = new THREE.MeshStandardMaterial({
-    color: "#a7687c",
-    roughness: 0.76,
-  });
-  function ellipsoid(parent, name, position, scale, material = skin) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), material);
-    m.name = name;
-    m.position.set(...position);
-    m.scale.set(...scale);
-    m.castShadow = m.receiveShadow = true;
-    parent.add(m);
-    return m;
-  }
-  const palmProfile = [
-    [0.46, 0.32, 0.12],
-    [0.58, 0.395, 0.155],
-    [0.86, 0.4, 0.165],
-    [1.13, 0.34, 0.145],
-    [1.38, 0.24, 0.115],
-    [1.67, 0.215, 0.115],
+// Rig layout in "palm space": the wrist is the origin, fingers point to -Z,
+// the back of the hand faces +Y and the thumb is on -X (a right hand).
+const FINGERS = [
+  // name, knuckle, phalanx lengths, radius, spread
+  ["Index", V(-0.27, 0.03, -0.88), [0.36, 0.22, 0.19], 0.079, 0.07],
+  ["Middle", V(-0.06, 0.035, -0.93), [0.39, 0.25, 0.2], 0.083, 0.01],
+  ["Ring", V(0.15, 0.025, -0.88), [0.37, 0.24, 0.19], 0.077, -0.05],
+  ["Little", V(0.33, 0.0, -0.78), [0.29, 0.18, 0.17], 0.066, -0.13],
+];
+const METACARPAL_BASES = [
+  V(-0.16, 0.02, -0.12),
+  V(-0.05, 0.03, -0.1),
+  V(0.07, 0.02, -0.12),
+  V(0.18, 0.0, -0.14),
+];
+const THUMB = {
+  base: V(-0.19, -0.07, -0.2),
+  rotation: [-0.32, 0.78, 0.95], // pitch, yaw, roll (YXZ)
+  lengths: [0.42, 0.3, 0.25],
+  radii: [0.105, 0.098, 0.088],
+};
+// Joint curl (radians) for each bone: [relaxed, pinching the piece].
+// Pinching extends the index and middle fingers forward like tweezers while
+// the ring and little fingers fold softly, so the piece stays visible.
+const CURL = {
+  Index: [[0.2, 0.32, 0.16], [0.34, 0.42, 0.18]],
+  Middle: [[0.18, 0.32, 0.16], [0.3, 0.5, 0.24]],
+  Ring: [[0.28, 0.4, 0.2], [0.55, 0.8, 0.4]],
+  Little: [[0.36, 0.46, 0.22], [0.6, 0.86, 0.42]],
+};
+const THUMB_POSE = [
+  // [x, y] per thumb bone, relaxed then pinching
+  [[0.1, -0.05], [0.28, -0.2], [0.2, 0.0]],
+  [[0.36, -0.3], [0.2, -0.08], [0.26, 0.0]],
+];
+const WRIST_FLEX = [-0.16, -0.3];
+const FOREARM_PITCH = -0.12;
+// Where the fingertips meet, relative to the piece origin (unscaled units).
+const PINCH_TARGET = V(0, 0.135, 0.02);
+
+// ---- signed distance field ----------------------------------------------
+const tmp = new THREE.Vector3();
+// Tapered capsule from a (radius r1) to b (radius r2), squashed vertically.
+// Scaling by `flatten` keeps the field from changing faster than distance,
+// which the narrow-band sampling and cell skipping rely on.
+function segmentField(a, b, r1, r2, flatten = 1) {
+  const { x: ax, y: ay, z: az } = a;
+  const bax = b.x - ax,
+    bay = b.y - ay,
+    baz = b.z - az;
+  const inv = 1 / (bax * bax + bay * bay + baz * baz),
+    fy = 1 / flatten,
+    dr = r2 - r1;
+  return (p) => {
+    const pax = p.x - ax,
+      pay = p.y - ay,
+      paz = p.z - az;
+    let h = (pax * bax + pay * bay + paz * baz) * inv;
+    h = h < 0 ? 0 : h > 1 ? 1 : h;
+    const qx = pax - bax * h,
+      qy = (pay - bay * h) * fy,
+      qz = paz - baz * h;
+    return (Math.sqrt(qx * qx + qy * qy + qz * qz) - (r1 + dr * h)) * flatten;
+  };
+}
+function ellipsoid(p, c, r) {
+  const x = (p.x - c.x) / r.x,
+    y = (p.y - c.y) / r.y,
+    z = (p.z - c.z) / r.z;
+  const k0 = Math.sqrt(x * x + y * y + z * z);
+  const k1 = Math.sqrt((x * x) / (r.x * r.x) + (y * y) / (r.y * r.y) + (z * z) / (r.z * r.z));
+  return k1 < 1e-6 ? -Math.min(r.x, r.y, r.z) : (k0 * (k0 - 1)) / k1;
+}
+function roundBox(p, c, half, radius, yaw) {
+  const dx = p.x - c.x,
+    dz = p.z - c.z;
+  const cs = Math.cos(yaw),
+    sn = Math.sin(yaw);
+  const x = Math.abs(dx * cs - dz * sn) - half.x,
+    y = Math.abs(p.y - c.y) - half.y,
+    z = Math.abs(dx * sn + dz * cs) - half.z;
+  const ox = Math.max(x, 0),
+    oy = Math.max(y, 0),
+    oz = Math.max(z, 0);
+  return Math.sqrt(ox * ox + oy * oy + oz * oz) + Math.min(Math.max(x, y, z), 0) - radius;
+}
+const smin = (a, b, k) => {
+  const h = Math.max(k - Math.abs(a - b), 0) / k;
+  return Math.min(a, b) - h * h * k * 0.25;
+};
+
+// Components know which bone they follow; fingers are blended into the palm
+// separately so neighbouring fingers never fuse together.
+// Every component carries a bounding sphere so far-away parts are skipped:
+// a smooth union with k only changes the result within k of the minimum.
+const seg = (bone, a, b, r1, r2, flatten = 1) => ({
+  bone,
+  d: segmentField(a, b, r1, r2, flatten),
+  center: a.clone().add(b).multiplyScalar(0.5),
+  radius: a.distanceTo(b) / 2 + Math.max(r1, r2),
+  scale: flatten,
+});
+const blob = (bone, c, r) => ({
+  bone,
+  d: (p) => ellipsoid(p, c, r),
+  center: c,
+  radius: Math.max(r.x, r.y, r.z),
+  scale: 1,
+});
+const far = (c, p, limit) =>
+  (c.center.distanceTo(p) - c.radius) * c.scale > limit;
+
+function buildField(chains) {
+  const boxCenter = V(0.03, -0.035, -0.47),
+    boxHalf = V(0.27, 0.035, 0.32);
+  const palm = [
+    {
+      bone: "palm",
+      d: (p) => roundBox(p, boxCenter, boxHalf, 0.105, -0.16),
+      center: boxCenter,
+      radius: boxHalf.length() + 0.105,
+      scale: 1,
+    },
+    ...FINGERS.map(([, knuckle], i) =>
+      seg("palm", METACARPAL_BASES[i], knuckle, 0.07, 0.092),
+    ),
+    blob("palm", V(-0.27, -0.1, -0.34), V(0.17, 0.1, 0.27)),
+    blob("palm", V(0.27, -0.09, -0.4), V(0.12, 0.085, 0.3)),
   ];
-  const curve = new THREE.CatmullRomCurve3(
-    palmProfile.map(([z, w, h]) => new THREE.Vector3(z, w, h)),
-  );
-  const rings = curve.getPoints(28).map((v) => [v.x, v.y, v.z]);
-  const vertices = [],
-    indices = [],
-    radial = 24;
-  rings.forEach(([z, width, thickness]) => {
-    for (let k = 0; k < radial; k++) {
-      const a = (k / radial) * Math.PI * 2;
-      vertices.push(Math.cos(a) * width, 0.76 + Math.sin(a) * thickness, z);
-    }
+  const forearm = seg("forearm", V(0, 0, -0.02), V(0, 0.02, 0.62), 0.245, 0.255, 0.68);
+  const groups = chains.map((chain) => {
+    const parts = chain.segments.map((s) =>
+      seg(s.bone, s.a, s.b, s.r1, s.r2, s.flatten),
+    );
+    const center = parts
+      .reduce((sum, c) => sum.add(c.center), V(0, 0, 0))
+      .divideScalar(parts.length);
+    const radius = Math.max(
+      ...parts.map((c) => c.center.distanceTo(center) + c.radius),
+    );
+    const scale = Math.min(...parts.map((c) => c.scale));
+    return { parts, center, radius, scale };
   });
-  for (let r = 0; r < rings.length - 1; r++)
-    for (let k = 0; k < radial; k++) {
-      const a = r * radial + k,
-        b = r * radial + ((k + 1) % radial);
-      indices.push(a, b, a + radial, b, b + radial, a + radial);
+  const palmField = (p) => {
+    let d = palm[0].d(p);
+    for (let i = 1; i < palm.length; i++)
+      if (!far(palm[i], p, d + 0.1)) d = smin(d, palm[i].d(p), 0.09);
+    return far(forearm, p, d + 0.17) ? d : smin(d, forearm.d(p), 0.16);
+  };
+  const field = (p) => {
+    const base = palmField(p);
+    let d = base;
+    for (const group of groups) {
+      if (far(group, p, base + 0.07)) continue;
+      const parts = group.parts;
+      let f = parts[0].d(p);
+      for (let i = 1; i < parts.length; i++) f = smin(f, parts[i].d(p), 0.03);
+      d = Math.min(d, smin(base, f, 0.07));
     }
-  for (const [r, reverse] of [
-    [0, true],
-    [rings.length - 1, false],
-  ]) {
-    const center = vertices.length / 3;
-    vertices.push(0, 0.76, rings[r][0]);
-    for (let k = 0; k < radial; k++) {
-      const a = r * radial + k,
-        b = r * radial + ((k + 1) % radial);
-      indices.push(...(reverse ? [center, b, a] : [center, a, b]));
+    return d;
+  };
+  return { field, components: [forearm, ...palm, ...groups.flatMap((g) => g.parts)] };
+}
+
+// Naive surface nets: one vertex per sign-changing cell, one quad per
+// sign-changing grid edge. Vertices are then projected onto the surface.
+function polygonize(field, min, max, step) {
+  const nx = Math.ceil((max.x - min.x) / step) + 1,
+    ny = Math.ceil((max.y - min.y) / step) + 1,
+    nz = Math.ceil((max.z - min.z) / step) + 1;
+  const values = new Float32Array(nx * ny * nz);
+  const at = (i, j, k) => i + nx * (j + ny * k);
+  const p = new THREE.Vector3();
+  // Narrow band: sample a coarse grid first and only evaluate fine points
+  // that could be near the surface; far points just keep the coarse sign.
+  const S = 4,
+    cx = Math.ceil((nx - 1) / S) + 1,
+    cy = Math.ceil((ny - 1) / S) + 1,
+    cz = Math.ceil((nz - 1) / S) + 1;
+  const coarse = new Float32Array(cx * cy * cz);
+  for (let k = 0; k < cz; k++)
+    for (let j = 0; j < cy; j++)
+      for (let i = 0; i < cx; i++) {
+        p.set(min.x + i * S * step, min.y + j * S * step, min.z + k * S * step);
+        coarse[i + cx * (j + cy * k)] = field(p);
+      }
+  const band = step * (S * 0.5 * Math.sqrt(3) * 1.25 + 1.5);
+  for (let k = 0; k < nz; k++)
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++) {
+        const c =
+          coarse[
+            Math.round(i / S) + cx * (Math.round(j / S) + cy * Math.round(k / S))
+          ];
+        if (Math.abs(c) > band) {
+          values[at(i, j, k)] = c;
+          continue;
+        }
+        p.set(min.x + i * step, min.y + j * step, min.z + k * step);
+        values[at(i, j, k)] = field(p);
+      }
+  const cellIndex = new Int32Array(nx * ny * nz).fill(-1);
+  const positions = [];
+  const corner = [],
+    offset = [];
+  for (let c = 0; c < 8; c++) {
+    corner.push([c & 1, (c >> 1) & 1, (c >> 2) & 1]);
+    offset.push((c & 1) + nx * (((c >> 1) & 1) + ny * ((c >> 2) & 1)));
+  }
+  const edges = [];
+  for (let a = 0; a < 8; a++)
+    for (const bit of [1, 2, 4]) if (!(a & bit)) edges.push([a, a | bit]);
+  // No sign change is possible within a cell when a corner is this far out.
+  const cellSkip = step * 2.2,
+    edgeSkip = step * 1.3;
+  const v = new Float32Array(8);
+  for (let k = 0; k < nz - 1; k++)
+    for (let j = 0; j < ny - 1; j++)
+      for (let i = 0; i < nx - 1; i++) {
+        const idx = at(i, j, k);
+        if (Math.abs(values[idx]) > cellSkip) continue;
+        let mask = 0;
+        for (let c = 0; c < 8; c++) {
+          v[c] = values[idx + offset[c]];
+          if (v[c] < 0) mask |= 1 << c;
+        }
+        if (mask === 0 || mask === 255) continue;
+        let sx = 0,
+          sy = 0,
+          sz = 0,
+          n = 0;
+        for (const [a, b] of edges) {
+          if (v[a] < 0 === v[b] < 0) continue;
+          const t = v[a] / (v[a] - v[b]);
+          const ca = corner[a],
+            cb = corner[b];
+          sx += ca[0] + (cb[0] - ca[0]) * t;
+          sy += ca[1] + (cb[1] - ca[1]) * t;
+          sz += ca[2] + (cb[2] - ca[2]) * t;
+          n++;
+        }
+        cellIndex[idx] = positions.length / 3;
+        positions.push(
+          min.x + (i + sx / n) * step,
+          min.y + (j + sy / n) * step,
+          min.z + (k + sz / n) * step,
+        );
+      }
+  const quads = [];
+  const dx = 1,
+    dy = nx,
+    dz = nx * ny;
+  for (let k = 1; k < nz - 1; k++)
+    for (let j = 1; j < ny - 1; j++)
+      for (let i = 1; i < nx - 1; i++) {
+        const c = at(i, j, k);
+        if (Math.abs(values[c]) > edgeSkip) continue;
+        const inside = values[c] < 0;
+        if (inside !== values[c + dx] < 0)
+          quads.push(c - dy - dz, c - dz, c, c - dy);
+        if (inside !== values[c + dy] < 0)
+          quads.push(c - dx - dz, c - dz, c, c - dx);
+        if (inside !== values[c + dz] < 0)
+          quads.push(c - dx - dy, c - dy, c, c - dx);
+      }
+  // Tetrahedral gradient: four samples instead of six.
+  const gradient = (q, out) => {
+    const e = step * 0.25;
+    const f = (x, y, z) => field(tmp.set(q.x + x * e, q.y + y * e, q.z + z * e));
+    const a = f(1, -1, -1),
+      b = f(-1, -1, 1),
+      c = f(-1, 1, -1),
+      d = f(1, 1, 1);
+    return out.set(a - b - c + d, -a - b + c + d, -a + b - c + d).normalize();
+  };
+  const g = new THREE.Vector3();
+  const normals = new Float32Array(positions.length);
+  // One Newton step onto the surface; the gradient doubles as the normal.
+  for (let n = 0; n < positions.length; n += 3) {
+    p.fromArray(positions, n);
+    gradient(p, g);
+    p.addScaledVector(g, -field(p));
+    p.toArray(positions, n);
+    g.toArray(normals, n);
+  }
+  const indices = [];
+  const pa = new THREE.Vector3(),
+    pb = new THREE.Vector3(),
+    pc = new THREE.Vector3(),
+    face = new THREE.Vector3();
+  for (let q = 0; q < quads.length; q += 4) {
+    const a = cellIndex[quads[q]],
+      b = cellIndex[quads[q + 1]],
+      c = cellIndex[quads[q + 2]],
+      d = cellIndex[quads[q + 3]];
+    if (a < 0 || b < 0 || c < 0 || d < 0) continue;
+    pa.fromArray(positions, a * 3);
+    pc.fromArray(positions, c * 3);
+    pb.fromArray(positions, b * 3);
+    const splitAC =
+      pa.distanceToSquared(pc) <
+      pb.distanceToSquared(tmp.fromArray(positions, d * 3));
+    const tris = splitAC ? [[a, b, c], [a, c, d]] : [[a, b, d], [b, c, d]];
+    for (const [x, y, z] of tris) {
+      pa.fromArray(positions, x * 3);
+      pb.fromArray(positions, y * 3);
+      pc.fromArray(positions, z * 3);
+      face.subVectors(pb, pa).cross(tmp.subVectors(pc, pa));
+      g.fromArray(normals, x * 3);
+      if (face.dot(g) >= 0) indices.push(x, y, z);
+      else indices.push(x, z, y);
     }
+  }
+  return { positions, normals, indices };
+}
+
+// ---- rig ------------------------------------------------------------------
+function buildRig() {
+  const forearm = new THREE.Bone();
+  forearm.name = "Forearm";
+  forearm.rotation.x = FOREARM_PITCH;
+  const palm = new THREE.Bone();
+  palm.name = "Palm";
+  forearm.add(palm);
+  const bones = { forearm, palm };
+  const order = [forearm, palm];
+  const joints = [];
+  const chains = [];
+  const nailSpots = [];
+  FINGERS.forEach(([name, knuckle, lengths, radius, spread]) => {
+    const anchor = new THREE.Group();
+    anchor.name = `${name}Anchor`;
+    anchor.position.copy(knuckle);
+    anchor.rotation.y = spread;
+    palm.add(anchor);
+    let parent = anchor;
+    const chain = { bones: [], lengths, radius };
+    lengths.forEach((length, i) => {
+      const bone = new THREE.Bone();
+      bone.name = `${name}Joint${i}`;
+      if (i) bone.position.z = -lengths[i - 1];
+      parent.add(bone);
+      parent = bone;
+      chain.bones.push(bone);
+      order.push(bone);
+      joints.push({
+        node: bone,
+        open: [-CURL[name][0][i], 0],
+        closed: [-CURL[name][1][i], 0],
+      });
+    });
+    chains.push(chain);
+    nailSpots.push(chain);
+  });
+  const thumbAnchor = new THREE.Group();
+  thumbAnchor.name = "ThumbAnchor";
+  thumbAnchor.position.copy(THUMB.base);
+  thumbAnchor.rotation.order = "YXZ";
+  thumbAnchor.rotation.set(...THUMB.rotation);
+  palm.add(thumbAnchor);
+  let parent = thumbAnchor;
+  const thumb = { bones: [], lengths: THUMB.lengths, radius: THUMB.radii[0], thumb: true };
+  THUMB.lengths.forEach((length, i) => {
+    const bone = new THREE.Bone();
+    bone.name = `ThumbJoint${i}`;
+    if (i) bone.position.z = -THUMB.lengths[i - 1];
+    parent.add(bone);
+    parent = bone;
+    thumb.bones.push(bone);
+    order.push(bone);
+    joints.push({
+      node: bone,
+      open: [-THUMB_POSE[0][i][0], THUMB_POSE[0][i][1]],
+      closed: [-THUMB_POSE[1][i][0], THUMB_POSE[1][i][1]],
+    });
+  });
+  chains.push(thumb);
+  nailSpots.push(thumb);
+  joints.push({ node: palm, open: [WRIST_FLEX[0], 0], closed: [WRIST_FLEX[1], 0] });
+  return { bones, order, joints, chains, nailSpots };
+}
+
+// Segment endpoints (with radii) for every phalanx, measured in the bind pose.
+function chainSegments(chain, root) {
+  const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const world = (obj, offset = V(0, 0, 0)) =>
+    offset.applyMatrix4(obj.matrixWorld).applyMatrix4(toRoot);
+  const segments = [];
+  chain.bones.forEach((bone, i) => {
+    const length = chain.lengths[i];
+    const r = chain.thumb ? THUMB.radii[i] : chain.radius;
+    const taper = chain.thumb
+      ? [r, i === 2 ? r * 0.86 : THUMB.radii[i + 1]]
+      : [[1, 0.93], [0.9, 0.84], [0.82, 0.76]][i].map((f) => f * r);
+    const a = world(bone);
+    const end = i === chain.bones.length - 1 ? length - taper[1] * 0.95 : length;
+    const b = world(bone, V(0, 0, -end));
+    segments.push({
+      bone: bone.name,
+      a,
+      b,
+      r1: taper[0],
+      r2: taper[1],
+      flatten: chain.thumb ? 0.92 : 0.86,
+    });
+  });
+  return segments;
+}
+
+let cachedGeometry = null;
+function handGeometry(rig) {
+  if (cachedGeometry) return cachedGeometry;
+  rig.bones.forearm.updateMatrixWorld(true);
+  const chains = rig.chains.map((chain) => ({
+    segments: chainSegments(chain, rig.bones.forearm),
+  }));
+  const { field, components } = buildField(chains);
+  const bounds = new THREE.Box3(V(-0.5, -0.3, -1.0), V(0.5, 0.2, 0.62));
+  for (const chain of chains)
+    for (const s of chain.segments) bounds.expandByPoint(s.a).expandByPoint(s.b);
+  bounds.expandByScalar(0.14);
+  const surface = polygonize(field, bounds.min, bounds.max, 0.019);
+  const boneIndex = new Map(rig.order.map((b, i) => [b.name, i]));
+  boneIndex.set("palm", 1);
+  boneIndex.set("forearm", 0);
+  const count = surface.positions.length / 3;
+  const skinIndex = new Uint16Array(count * 4),
+    skinWeight = new Float32Array(count * 4),
+    colors = new Float32Array(count * 3);
+  const base = new THREE.Color("#e9a98d"),
+    blush = new THREE.Color("#e0857a"),
+    light = new THREE.Color("#f6cdb9"),
+    color = new THREE.Color();
+  const joints = [],
+    tips = [];
+  for (const chain of chains)
+    chain.segments.forEach((s, i) => {
+      joints.push(s.a);
+      if (i === chain.segments.length - 1) tips.push(s.b);
+    });
+  // Skin weights: each component pulls the vertex toward its bone, fading
+  // out quickly with distance beyond the nearest component.
+  const p = new THREE.Vector3();
+  const componentBone = components.map((c) => boneIndex.get(c.bone));
+  const distances = new Float32Array(components.length),
+    byBone = new Float32Array(rig.order.length);
+  for (let n = 0; n < count; n++) {
+    p.fromArray(surface.positions, n * 3);
+    let nearest = Infinity;
+    for (let i = 0; i < components.length; i++) {
+      const c = components[i];
+      distances[i] = far(c, p, nearest + 0.21) ? Infinity : c.d(p);
+      if (distances[i] < nearest) nearest = distances[i];
+    }
+    byBone.fill(0);
+    for (let i = 0; i < components.length; i++)
+      if (distances[i] - nearest < 0.21)
+        byBone[componentBone[i]] += Math.exp(-(distances[i] - nearest) / 0.03);
+    let sum = 0;
+    for (let k = 0; k < 4; k++) {
+      let best = 0;
+      for (let b = 1; b < byBone.length; b++) if (byBone[b] > byBone[best]) best = b;
+      if (byBone[best] <= 0) break;
+      skinIndex[n * 4 + k] = best;
+      skinWeight[n * 4 + k] = byBone[best];
+      sum += byBone[best];
+      byBone[best] = 0;
+    }
+    for (let k = 0; k < 4; k++) skinWeight[n * 4 + k] /= sum;
+    let pink = 0;
+    for (const j of joints) pink += 0.4 * Math.exp(-p.distanceToSquared(j) / 0.0045);
+    for (const t of tips) pink += 0.75 * Math.exp(-p.distanceToSquared(t) / 0.012);
+    color.copy(base).lerp(blush, Math.min(pink, 0.85));
+    if (p.y < -0.06 && p.z > -0.95) color.lerp(light, 0.35);
+    color.toArray(colors, n * 3);
   }
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(vertices, 3),
-  );
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  const palm = new THREE.Mesh(geometry, skin);
-  palm.name = "Palm";
-  palm.castShadow = palm.receiveShadow = true;
-  hand.add(palm);
-  ellipsoid(hand, "ThumbWeb", [-0.265, 0.71, 0.88], [0.17, 0.12, 0.25]);
-  function cuffRing(z, length, material, radius) {
-    const m = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius * 1.04, length, 32),
-      material,
-    );
-    m.rotation.x = Math.PI / 2;
-    m.scale.z = 0.67;
-    m.position.set(0, 0.76, z);
-    m.castShadow = true;
-    hand.add(m);
-  }
-  cuffRing(1.69, 0.24, cuff, 0.265);
-  cuffRing(1.57, 0.04, trim, 0.271);
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(surface.positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(surface.normals, 3));
+  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geometry.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(skinIndex, 4));
+  geometry.setAttribute("skinWeight", new THREE.Float32BufferAttribute(skinWeight, 4));
+  geometry.setIndex(surface.indices);
+  cachedGeometry = geometry;
+  return geometry;
+}
+
+function kimonoTexture(side) {
   const textile = document.createElement("canvas");
   textile.width = textile.height = 512;
   const ctx = textile.getContext("2d");
@@ -139,225 +535,194 @@ export function makeHand(side = 0) {
     ctx.fill();
     ctx.restore();
   }
-  const textileMap = new THREE.CanvasTexture(textile);
-  textileMap.colorSpace = THREE.SRGBColorSpace;
-  textileMap.wrapS = textileMap.wrapT = THREE.RepeatWrapping;
-  textileMap.repeat.set(2, 3);
-  textileMap.anisotropy = 4;
+  const map = new THREE.CanvasTexture(textile);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(2, 3);
+  map.anisotropy = 4;
+  return map;
+}
+
+function addSleeve(parent, side) {
+  const cuff = new THREE.MeshStandardMaterial({ color: "#f3ebdf", roughness: 0.9 });
+  const trim = new THREE.MeshStandardMaterial({ color: "#a7687c", roughness: 0.76 });
+  function ring(z, length, material, radius) {
+    const m = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius, radius * 1.05, length, 40, 1, true),
+      material,
+    );
+    m.material.side = THREE.DoubleSide;
+    m.rotation.x = Math.PI / 2;
+    m.scale.z = 0.72;
+    m.position.set(0, 0.01, z);
+    m.castShadow = true;
+    parent.add(m);
+  }
+  ring(0.36, 0.3, cuff, 0.276);
+  ring(0.22, 0.035, trim, 0.282);
   const silk = new THREE.MeshStandardMaterial({
     color: "#ffffff",
-    map: textileMap,
+    map: kimonoTexture(side),
     roughness: 0.85,
     side: THREE.DoubleSide,
   });
-  const sleeveVertices = [],
-    sleeveUV = [],
-    sleeveIndices = [],
+  const vertices = [],
+    uv = [],
+    indices = [],
     sections = 28,
     around = 40;
   for (let j = 0; j <= sections; j++) {
     const t = j / sections,
-      z = 1.73 + t * 7;
-    const width = 0.29 + Math.pow(t, 0.66) * 1.2,
-      depth = 0.19 + Math.pow(t, 0.75) * 0.72;
+      z = 0.44 + t * 7;
+    const width = 0.3 + Math.pow(t, 0.66) * 1.2,
+      depth = 0.22 + Math.pow(t, 0.75) * 0.7;
     for (let k = 0; k <= around; k++) {
       const angle = (k / around) * Math.PI * 2,
         fold = Math.sin(angle * 7 + t * 3) * 0.027 * Math.sin(Math.PI * t);
-      sleeveVertices.push(
+      vertices.push(
         Math.cos(angle) * (width + fold),
-        0.76 + t * 1.4 + Math.sin(angle) * (depth + fold),
+        0.01 + t * 0.55 + Math.sin(angle) * (depth + fold),
         z,
       );
-      sleeveUV.push(k / around, t);
+      uv.push(k / around, t);
     }
   }
   for (let j = 0; j < sections; j++)
     for (let k = 0; k < around; k++) {
       const a = j * (around + 1) + k,
         b = a + around + 1;
-      sleeveIndices.push(a, a + 1, b, a + 1, b + 1, b);
+      indices.push(a, a + 1, b, a + 1, b + 1, b);
     }
-  const sleeveGeometry = new THREE.BufferGeometry();
-  sleeveGeometry.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(sleeveVertices, 3),
-  );
-  sleeveGeometry.setAttribute(
-    "uv",
-    new THREE.Float32BufferAttribute(sleeveUV, 2),
-  );
-  sleeveGeometry.setIndex(sleeveIndices);
-  sleeveGeometry.computeVertexNormals();
-  const sleeve = new THREE.Mesh(sleeveGeometry, silk);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const sleeve = new THREE.Mesh(geometry, silk);
   sleeve.name = "SakuraKimonoSleeve";
   sleeve.castShadow = sleeve.receiveShadow = true;
-  hand.add(sleeve);
-  const joints = [];
-  function finger(name, base, lengths, radius, spread, open, closed) {
-    const anchor = new THREE.Group();
-    anchor.name = `${name}Anchor`;
-    anchor.position.set(...base);
-    anchor.rotation.y = spread;
-    hand.add(anchor);
-    let parent = anchor;
-    const bones = [];
-    lengths.forEach((length, i) => {
-      const joint = new THREE.Bone();
-      joint.name = `${name}Joint${i}`;
-      parent.add(joint);
-      if (i) joint.position.z = -lengths[i - 1];
-      const r = radius * (1 - i * 0.13);
-      if (i === lengths.length - 1)
-        ellipsoid(
-          joint,
-          `${name}Nail`,
-          [0, r * 0.78, -length * 0.65],
-          [r * 0.66, 0.008, length * 0.32],
-          nails,
-        );
-      joints.push({ node: joint, open: open[i], closed: closed[i] });
-      bones.push(joint);
-      parent = joint;
-    });
-    const positions = [],
-      indices = [],
-      skinIndices = [],
-      weights = [];
-    const total = lengths.reduce((a, b) => a + b, 0),
-      rings = 48,
-      around = 24;
-    const boundaries = lengths.map((_, i) =>
-      lengths.slice(0, i).reduce((a, b) => a + b, 0),
-    );
-    for (let j = 0; j <= rings; j++) {
-      const d = -0.08 + ((total + 0.08) * j) / rings;
-      const t = Math.max(0, d / total);
-      const tip = t > 0.86 ? Math.cos((((t - 0.86) / 0.14) * Math.PI) / 2) : 1;
-      const r = radius * (1 - 0.27 * t) * tip;
-      let a = 0,
-        b = 0,
-        blend = 0;
-      for (let i = 1; i < bones.length; i++) {
-        const v = boundaries[i],
-          width = radius * 0.85;
-        if (d >= v + width) {
-          a = b = i;
-          blend = 0;
-        } else if (d > v - width) {
-          a = i - 1;
-          b = i;
-          blend = smooth((d - v + width) / (width * 2));
-          break;
-        }
-      }
-      for (let k = 0; k <= around; k++) {
-        const angle = (k / around) * Math.PI * 2;
-        positions.push(Math.cos(angle) * r, Math.sin(angle) * r * 0.84, -d);
-        skinIndices.push(a, b, 0, 0);
-        weights.push(1 - blend, blend, 0, 0);
-      }
-    }
-    for (let j = 0; j < rings; j++)
-      for (let k = 0; k < around; k++) {
-        const a = j * (around + 1) + k,
-          b = a + around + 1;
-        indices.push(a, b, a + 1, a + 1, b, b + 1);
-      }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3),
-    );
-    geometry.setAttribute(
-      "skinIndex",
-      new THREE.Uint16BufferAttribute(skinIndices, 4),
-    );
-    geometry.setAttribute(
-      "skinWeight",
-      new THREE.Float32BufferAttribute(weights, 4),
-    );
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    const mesh = new THREE.SkinnedMesh(geometry, skin);
-    mesh.name = name + "Skin";
-    mesh.castShadow = mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
-    anchor.add(mesh);
-    hand.updateMatrixWorld(true);
-    mesh.bind(new THREE.Skeleton(bones));
-    return anchor;
+  parent.add(sleeve);
+}
+
+function addNails(rig) {
+  const nail = new THREE.MeshPhysicalMaterial({
+    color: "#f8d9d1",
+    roughness: 0.32,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.3,
+  });
+  const shape = new THREE.SphereGeometry(1, 20, 12);
+  for (const chain of rig.nailSpots) {
+    const bone = chain.bones.at(-1);
+    const length = chain.lengths.at(-1);
+    const r = chain.thumb ? THUMB.radii[2] * 0.93 : chain.radius * 0.79;
+    const flatten = chain.thumb ? 0.92 : 0.86;
+    const m = new THREE.Mesh(shape, nail);
+    m.name = bone.name.replace(/Joint\d$/, "Nail");
+    m.position.set(0, r * flatten - r * 0.24, -length * 0.62);
+    m.scale.set(r * 0.72, r * 0.34, length * 0.38);
+    m.rotation.x = -0.08;
+    m.castShadow = true;
+    bone.add(m);
   }
-  finger(
-    "Index",
-    [-0.22, 0.76, 0.5],
-    [0.37, 0.26, 0.2],
-    0.086,
-    -0.035,
-    [-0.18, -0.18, -0.1],
-    [-0.55, -0.56, -0.12],
-  );
-  finger(
-    "Middle",
-    [-0.015, 0.76, 0.47],
-    [0.4, 0.28, 0.2],
-    0.091,
-    0,
-    [-0.13, -0.2, -0.1],
-    [-0.52, -0.55, -0.1],
-  );
-  finger(
-    "Ring",
-    [0.19, 0.75, 0.56],
-    [0.38, 0.27, 0.21],
-    0.084,
-    -0.09,
-    [-0.32, -0.36, -0.12],
-    [-0.44, -0.72, -0.45],
-  );
-  finger(
-    "Little",
-    [0.35, 0.73, 0.7],
-    [0.29, 0.22, 0.18],
-    0.07,
-    -0.2,
-    [-0.4, -0.46, -0.19],
-    [-0.44, -0.74, -0.4],
-  );
-  const thumb = finger(
-    "Thumb",
-    [-0.355, 0.67, 0.72],
-    [0.33, 0.28],
-    0.11,
-    0.6,
-    [-0.4, -0.24],
-    [-0.82, -0.4],
-  );
-  joints.push({ node: thumb, axis: "y", open: 0.6, closed: -0.08 });
+}
+
+// A standalone right hand in a kimono sleeve. The local origin is the point
+// where the fingertips pinch a piece; +Z points to the wrist.
+let skinMaterial = null;
+// The skin mesh takes a moment to generate, so it is built when the browser
+// is idle (or on first use) instead of while the page is loading.
+function attachSkin(hand, rig) {
+  const joints = rig.joints;
+  const saved = joints.map((j) => j.node.rotation.clone());
+  for (const j of joints) j.node.rotation.set(0, 0, 0);
+  hand.updateMatrixWorld(true);
+  skinMaterial ??= new THREE.MeshPhysicalMaterial({
+    color: "#ffffff",
+    vertexColors: true,
+    roughness: 0.6,
+    sheen: 0.4,
+    sheenColor: new THREE.Color("#ffc4b0"),
+    sheenRoughness: 0.55,
+  });
+  const mesh = new THREE.SkinnedMesh(handGeometry(rig), skinMaterial);
+  mesh.name = "HandSkin";
+  mesh.castShadow = mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  rig.bones.forearm.add(mesh);
+  hand.updateMatrixWorld(true);
+  mesh.bind(new THREE.Skeleton(rig.order));
+  joints.forEach((j, i) => j.node.rotation.copy(saved[i]));
+}
+
+// A standalone right hand in a kimono sleeve. The local origin is the point
+// where the fingertips pinch a piece; +Z points to the wrist.
+export function makeHand(side = 0) {
+  const hand = new THREE.Group();
+  hand.name = "ShogiHand";
+  // Yaw first, so tilt and roll stay relative to the arm on either side.
+  hand.rotation.order = "YXZ";
+  const rig = buildRig();
+  hand.add(rig.bones.forearm);
+  addNails(rig);
+  addSleeve(rig.bones.forearm, side);
+  let skinned = false;
+  const entry = {
+    joints: rig.joints,
+    ensure() {
+      if (skinned) return;
+      skinned = true;
+      attachSkin(hand, rig);
+    },
+  };
+  rigs.set(hand, entry);
+
+  // Calibrate: move the arm so the pinching fingertips meet at the origin.
+  pose(entry, 1);
+  hand.updateMatrixWorld(true);
+  const toHand = new THREE.Matrix4().copy(hand.matrixWorld).invert();
+  const tip = (chain) =>
+    V(0, 0, -chain.lengths.at(-1) * 0.8)
+      .applyMatrix4(chain.bones.at(-1).matrixWorld)
+      .applyMatrix4(toHand);
+  const pinch = tip(rig.chains[0])
+    .add(tip(rig.chains[1]))
+    .add(tip(rig.chains[4]))
+    .divideScalar(3);
+  rig.bones.forearm.position.add(PINCH_TARGET.clone().sub(pinch));
   hand.scale.setScalar(1.4);
-  rigs.set(hand, joints);
-  poseHand(hand, 0);
+  pose(entry, 0);
+  const idle = globalThis.requestIdleCallback ?? ((fn) => setTimeout(fn, 400));
+  idle(() => entry.ensure());
   return hand;
 }
 
+// grip: -0.4 (fingers spread before taking a piece) … 0 (relaxed) … 1 (pinch).
 export function poseHand(hand, grip) {
-  for (const joint of rigs.get(hand) || [])
-    joint.node.rotation[joint.axis || "x"] = THREE.MathUtils.lerp(
-      joint.open,
-      joint.closed,
-      THREE.MathUtils.clamp(grip, 0, 1),
+  const entry = rigs.get(hand);
+  if (!entry) return;
+  entry.ensure();
+  pose(entry, grip);
+}
+function pose(entry, grip) {
+  const g = THREE.MathUtils.clamp(grip, -0.4, 1);
+  for (const joint of entry.joints)
+    joint.node.rotation.set(
+      THREE.MathUtils.lerp(joint.open[0], joint.closed[0], g),
+      THREE.MathUtils.lerp(joint.open[1], joint.closed[1], g),
+      0,
     );
 }
 
 export function makeHandClip(hand) {
   const tracks = [];
-  for (const joint of rigs.get(hand) || []) {
+  for (const joint of rigs.get(hand)?.joints || []) {
     const values = [];
     for (const amount of [0, 0, 1, 1, 0]) {
-      const e = joint.node.rotation.clone();
-      e[joint.axis || "x"] = THREE.MathUtils.lerp(
-        joint.open,
-        joint.closed,
-        amount,
+      const e = new THREE.Euler(
+        THREE.MathUtils.lerp(joint.open[0], joint.closed[0], amount),
+        THREE.MathUtils.lerp(joint.open[1], joint.closed[1], amount),
+        0,
       );
       const q = new THREE.Quaternion().setFromEuler(e);
       values.push(q.x, q.y, q.z, q.w);
@@ -389,19 +754,21 @@ export function updateHandMove(hand, move, t) {
   );
   const contact = new THREE.Vector3();
   let grip = 0,
+    tilt = 0,
+    roll = 0,
     phase;
   hand.visible = true;
-  hand.rotation.y = move.side ? Math.PI : 0;
   if (t < 0.24) {
     phase = "reach";
     const a = smooth(t / 0.24);
     contact.lerpVectors(rest, move.from, a);
     contact.y += Math.sin(a * Math.PI) * 0.5;
+    grip = -0.12 * smooth((t - 0.1) / 0.14);
     move.object.position.copy(move.from);
   } else if (t < 0.36) {
     phase = "grip";
     contact.copy(move.from);
-    grip = smooth((t - 0.24) / 0.12);
+    grip = -0.12 + 1.12 * smooth((t - 0.24) / 0.12);
     move.object.position.copy(move.from);
   } else if (t < 0.72) {
     phase = "carry";
@@ -410,18 +777,27 @@ export function updateHandMove(hand, move, t) {
     move.object.position.y += Math.sin(a * Math.PI) * 0.95;
     contact.copy(move.object.position);
     grip = 1;
+    // Tilt around the fingertips so the piece never slips: raise the arm on
+    // the way up, then snap the fingers down onto the square.
+    tilt = -0.07 * Math.sin(a * Math.PI) - 0.1 * smooth((a - 0.72) / 0.28);
+    roll = 0.06 * Math.sin(a * Math.PI);
   } else if (t < 0.82) {
     phase = "release";
     move.object.position.copy(move.to);
+    const a = smooth((t - 0.72) / 0.1);
     contact.copy(move.to);
-    grip = 1 - smooth((t - 0.72) / 0.1);
+    contact.y += 0.06 * a;
+    grip = 1 - 0.7 * a;
+    tilt = -0.1 * (1 - a);
   } else {
     phase = "withdraw";
     const a = smooth((t - 0.82) / 0.18);
     move.object.position.copy(move.to);
     contact.lerpVectors(move.to, departure, a);
-    contact.y += Math.sin(a * Math.PI) * 0.45;
+    contact.y += 0.06 * (1 - a) + Math.sin(a * Math.PI) * 0.45;
+    grip = 0.3 * (1 - a);
   }
+  hand.rotation.set(tilt, move.side ? Math.PI : 0, roll);
   hand.position.copy(contact);
   poseHand(hand, grip);
   if (t >= 1) {

@@ -7,17 +7,20 @@ import {
   moveKey,
   declaration,
 } from "./engine.js";
+// Piece values from Koji Tanigawa's table (pawn = 1, scaled by 100):
+// P1 L3 N4 S5 G6 B8 R10, tokin 7, promoted L/N/S 6, horse 10, dragon 12.
+// The king has no material value; checkmate is scored by the search.
 const VALUES = {
   P: 100,
-  L: 290,
-  N: 310,
-  S: 440,
-  G: 530,
-  B: 850,
-  R: 1050,
+  L: 300,
+  N: 400,
+  S: 500,
+  G: 600,
+  B: 800,
+  R: 1000,
   K: 0,
 };
-const PROMOTED = { P: 530, L: 530, N: 530, S: 540, B: 1150, R: 1370 };
+const PROMOTED = { P: 700, L: 600, N: 600, S: 600, B: 1000, R: 1200 };
 export function evaluate(p) {
   let score = 0;
   for (let i = 0; i < 81; i++) {
