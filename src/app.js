@@ -37,7 +37,8 @@ const pick = (value, allowed, fallback) =>
 
 let store = {
   prefs: {
-    theme: "spring",
+    theme: "sunset",
+    themeChosen: false,
     sound: true,
     shadows: true,
     animation: true,
@@ -64,7 +65,12 @@ function loadStore() {
     };
     const p = { ...store.prefs, ...data.prefs };
     store.prefs = {
-      theme: pick(p.theme, ["spring", "sunset", "night"], "spring"),
+      // Only a theme the player picked sticks; everyone else follows the
+      // default (older saves stored "spring" without the player choosing it).
+      theme: p.themeChosen
+        ? pick(p.theme, ["spring", "sunset", "night"], "sunset")
+        : "sunset",
+      themeChosen: p.themeChosen === true,
       sound: p.sound !== false,
       shadows: p.shadows !== false,
       animation: p.animation !== false,
@@ -1400,6 +1406,7 @@ $$(".themes [data-theme]").forEach(
   (b) =>
     (b.onclick = () => {
       store.prefs.theme = b.dataset.theme;
+      store.prefs.themeChosen = true;
       applyPreferences();
       persist();
     }),
