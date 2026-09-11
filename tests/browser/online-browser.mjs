@@ -116,10 +116,50 @@ try {
     "找不到這個房間。",
     net,
   );
-  for (const p of [host, guest, solo]) await p.context.close();
+
+  // Random matching: an unlimited-time seeker waits, cancels, seeks again and
+  // is found by a second seeker. Unlimited time keeps this test away from the
+  // 5-minute pool the online screenshots use.
+  const seekers = [await player("甲"), await player("乙")];
+  const seek = async ({ page }) => {
+    await page.locator('input[name="match-time"][value="0"] + span').click();
+    await page.locator("#match-start").click();
+    await expect(page.locator("#online-page")).toHaveAttribute(
+      "data-state",
+      "matching",
+    );
+  };
+  await seek(seekers[0]);
+  await expect(seekers[0].page.locator("#match-rule")).toHaveText(
+    "無限時 · 隨機先後",
+  );
+  await seekers[0].page.locator("#match-cancel").click();
+  await expect(seekers[0].page.locator("#online-page")).toHaveAttribute(
+    "data-state",
+    "lobby",
+  );
+  await seek(seekers[0]);
+  await seekers[0].page.waitForTimeout(2500);
+  await seek(seekers[1]);
+  for (const { page } of seekers)
+    await expect(page.locator("#play-page")).toBeVisible(net);
+  await expect(seekers[0].page.locator("#seat-top .name")).toHaveText("乙");
+  await expect(seekers[1].page.locator("#seat-top .name")).toHaveText("甲");
+  const sides = await Promise.all(
+    seekers.map(({ page }) =>
+      page.locator("#seat-bottom .side-name").textContent(),
+    ),
+  );
+  assert.deepEqual(sides.toSorted(), ["先手", "後手"]);
+  await expect(seekers[0].page.locator("#seat-bottom .clock")).toHaveText("∞");
+  const [first, second] = sides[0] === "先手" ? seekers : seekers.toReversed();
+  await move(first.page, 56, 47);
+  await expect(second.page.locator("#side-moves button")).toHaveCount(1, net);
+
+  for (const p of [host, guest, solo, ...seekers]) await p.context.close();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: MQTT room create/join, synced moves and clocks, no assists online, resign result on both sides, rematch with swapped sides, leaving counts as resign, missing room error.",
+    "PASS: MQTT room create/join, synced moves and clocks, no assists online, resign result on both sides, rematch with swapped sides, leaving counts as resign, missing room error, random match with cancel and retry.",
   );
 } finally {
   await browser.close();

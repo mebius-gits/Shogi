@@ -49,6 +49,7 @@ let store = {
   cpu: { level: "2", side: "0", time: "0" },
   local: { name: "對手", time: "0" },
   room: { time: "300:10", side: "random" },
+  match: { time: "300:10" },
 };
 function loadStore() {
   try {
@@ -85,6 +86,7 @@ function loadStore() {
       time: pick(data.room?.time, times, "300:10"),
       side: pick(data.room?.side, ["0", "1", "random"], "random"),
     };
+    store.match = { time: pick(data.match?.time, times, "300:10") };
     if (old) localStorage.removeItem("sakurama-shogi-v1");
   } catch (error) {
     console.warn("Could not read preferences:", error.message);
@@ -1019,9 +1021,22 @@ function closeNet() {
   netStatus = "idle";
   renderNet();
 }
+let matchTimer = null;
 function setLobby(state) {
   $("#online-page").dataset.state = state;
+  clearInterval(matchTimer);
+  if (state !== "matching") return;
+  const since = Date.now(),
+    show = () => {
+      const s = Math.floor((Date.now() - since) / 1000);
+      $("#match-elapsed").textContent =
+        `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+  show();
+  matchTimer = setInterval(show, 1000);
 }
+const timeLabel = (name) =>
+  $(`input[name="${name}"]:checked + span`).firstChild.textContent.trim();
 function enterLobby() {
   setLobby("lobby");
   $("#join-error").textContent = "";
@@ -1040,8 +1055,10 @@ function renderNet() {
       error: "無法連線到伺服器",
     }[netStatus] || "";
   $("#net-retry").hidden = netStatus !== "error";
-  $("#room-create").disabled = $("#room-join").disabled =
-    netStatus !== "online";
+  $("#room-create").disabled =
+    $("#room-join").disabled =
+    $("#match-start").disabled =
+      netStatus !== "online";
 }
 $("#net-retry").onclick = () => {
   closeNet();
@@ -1059,11 +1076,30 @@ $("#create-form").onsubmit = async (e) => {
     });
     $("#room-code-display").textContent = code;
     $("#room-rule").textContent =
-      `${$(`input[name="room-time"]:checked + span`).firstChild.textContent} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
+      `${timeLabel("room-time")} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
     setLobby("waiting");
-  } catch {
-    toast("建立房間失敗，請稍後再試。");
+  } catch (error) {
+    if (error.message !== "cancelled") toast("建立房間失敗，請稍後再試。");
   }
+};
+$("#match-form").onsubmit = async (e) => {
+  e.preventDefault();
+  store.match = { time: radio("match-time") };
+  persist();
+  $("#match-rule").textContent = `${timeLabel("match-time")} · 隨機先後`;
+  setLobby("matching");
+  const room = net;
+  try {
+    await room.match({ time: TIMES[store.match.time], player: publicProfile() });
+  } catch {
+    if (net !== room || $("#online-page").dataset.state !== "matching") return;
+    setLobby("lobby");
+    toast("配對失敗，請稍後再試。");
+  }
+};
+$("#match-cancel").onclick = async () => {
+  setLobby("lobby");
+  await net?.cancel();
 };
 $("#room-code-input").oninput = (e) => {
   e.target.value = cleanRoomCode(e.target.value);
@@ -1438,6 +1474,7 @@ $("#profile-form").onsubmit = (e) => {
   if (offline()) players[session.mode === "ai" ? session.mySide : 0] = store.profile;
   renderHome();
   render(false);
+  $("#settings-dialog").close();
   toast("玩家資料已儲存。");
 };
 $("#network-form").onsubmit = (e) => {
@@ -1454,6 +1491,7 @@ $("#network-form").onsubmit = (e) => {
     closeNet();
     if (currentPage === "online") enterLobby();
   }
+  $("#settings-dialog").close();
   toast(online() ? "新的伺服器會在下一局使用。" : "連線設定已儲存。");
 };
 $("#broker-reset").onclick = () => {
@@ -1482,6 +1520,7 @@ setRadio("cpu-time", store.cpu.time);
 setRadio("local-time", store.local.time);
 setRadio("room-time", store.room.time);
 setRadio("room-side", store.room.side);
+setRadio("match-time", store.match.time);
 $("#local-name").value = store.local.name;
 applyPreferences();
 renderNet();

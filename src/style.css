@@ -1522,7 +1522,8 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
 }
 .lobby,
 .waiting,
-.joining {
+.joining,
+.matching {
   display: none;
 }
 .online-page[data-state="lobby"] .lobby {
@@ -1531,7 +1532,8 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   gap: 18px;
 }
 .online-page[data-state="waiting"] .waiting,
-.online-page[data-state="joining"] .joining {
+.online-page[data-state="joining"] .joining,
+.online-page[data-state="matching"] .matching {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1563,6 +1565,49 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
 }
 .lobby-card .field {
   margin-top: 0;
+}
+.match-card {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.42fr);
+  grid-template-areas:
+    "head head"
+    "note note"
+    "choice start";
+  gap: 0 18px;
+  align-items: end;
+  border-color: #c9a45c66;
+}
+.match-card h2 {
+  grid-area: head;
+  margin-bottom: 8px;
+}
+.match-card .card-note {
+  grid-area: note;
+  margin-bottom: 16px;
+}
+.match-card .choice {
+  grid-area: choice;
+  margin: 0;
+}
+.match-card .primary {
+  grid-area: start;
+  min-height: 52px;
+  padding-inline: 12px;
+  white-space: nowrap;
+}
+.card-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.match-elapsed {
+  font: 600 40px var(--num);
+  letter-spacing: 0.1em;
+  color: var(--kin-light);
+  text-shadow: 0 0 24px #c9a45c55;
 }
 .field input.code-input {
   padding-left: 0.4em;
@@ -2312,6 +2357,13 @@ dialog::backdrop {
   .setup-grid,
   .online-page[data-state="lobby"] .lobby {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .match-card {
+    display: flex;
+    align-items: stretch;
+  }
+  .match-card .choice {
+    margin-bottom: 20px;
   }
   .opponent-art {
     min-height: 240px;

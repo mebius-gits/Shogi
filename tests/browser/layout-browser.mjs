@@ -177,6 +177,9 @@ try {
     /^data:/,
   );
   await page.locator('#profile-form button[type="submit"]').click();
+  await expect(page.locator("#settings-dialog")).toBeHidden();
+  await expect(page.locator("#home-name")).toHaveText("櫻花棋士");
+  await page.locator("#settings-open").click();
   await page.locator('[data-tab="room"]').click();
   await page.locator('[data-theme="night"]').click();
   await page.locator("#shadow-toggle").click();

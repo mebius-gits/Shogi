@@ -158,6 +158,19 @@
           ><button class="text-button" hidden="" id="net-retry">重試</button>
         </div>
         <div class="lobby">
+          <form class="lobby-card match-card" id="match-form">
+            <h2>隨機配對<small>RANDOM MATCH</small></h2>
+            <p class="card-note">與正在等待的玩家配對，先後手隨機決定。</p>
+            <fieldset class="choice">
+              <legend>對局用時</legend>
+              <label><input name="match-time" type="radio" value="0" /><span>無限時</span></label
+              ><label><input name="match-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+              ><label><input name="match-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+            </fieldset>
+            <button class="primary full" id="match-start" type="submit">
+              開始配對
+            </button>
+          </form>
           <form class="lobby-card" id="create-form">
             <h2>建立房間<small>CREATE</small></h2>
             <fieldset class="choice">
@@ -204,6 +217,13 @@
         </div>
         <div class="joining">
           <p class="waiting-text">進入房間中<i></i><i></i><i></i></p>
+        </div>
+        <div class="matching">
+          <span class="eyebrow">RANDOM MATCH</span>
+          <p class="waiting-text">尋找對手中<i></i><i></i><i></i></p>
+          <p class="room-rule" id="match-rule"></p>
+          <strong class="match-elapsed" id="match-elapsed">0:00</strong>
+          <button class="text-button" id="match-cancel">取消配對</button>
         </div>
       </section>
 
