@@ -143,7 +143,7 @@ app.js ──postMessage(局面, 深度, 時限)──▶ ai-worker.js（Web Wor
 | 函式庫 | **MQTT.js 5.15.2** 瀏覽器 ES 模組，放在 `vendor/mqtt.esm.js`，不依賴 CDN |
 | 協定版本 | **MQTT 5.0** |
 | 傳輸層 | **MQTT over WebSocket**（`ws://` 或 `wss://`） |
-| 預設 broker | EMQX 公開測試伺服器 `wss://broker.emqx.io:8084/mqtt`，可在「設定 → 連線」改成自己的 broker |
+| 預設 broker | EMQX 公開測試伺服器 `wss://broker.emqx.io:8084/mqtt`，可在「設定 → 進階」改成自己的 broker |
 | 訊息格式 | JSON |
 | 程式位置 | `src/online/net.js`（`OnlineRoom` 類別）、`src/app.js`（對局同步） |
 

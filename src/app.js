@@ -154,7 +154,7 @@ try {
 } catch (error) {
   console.error(error);
   $("#loading").innerHTML =
-    '<span class="loading-seal">将</span><p>無法啟用 WebGL，請開啟瀏覽器硬體加速後重新整理。</p>';
+    '<span class="loading-seal">将</span><p>這個瀏覽器無法顯示 3D 棋盤。請更新瀏覽器，或在瀏覽器設定中開啟「硬體加速」後重新整理。</p>';
   throw error;
 }
 $("#board-canvas").addEventListener("rendererror", (e) => toast(e.detail));
@@ -492,7 +492,9 @@ function modeLabel() {
   if (!session) return "";
   if (session.mode === "ai") return "平手 · 電腦對戰";
   if (session.mode === "local") return "平手 · 同機雙人";
-  return `連線對戰 · 房號 ${session.code}`;
+  return session.kind === "match"
+    ? "連線對戰 · 隨機配對"
+    : `連線對戰 · 房號 ${session.code}`;
 }
 function render(syncBoard = true) {
   if (!session) return;
@@ -845,7 +847,7 @@ const reasonText = (reason) =>
   })[reason] || "對局已結束。";
 function resultTitle() {
   const w = game.result?.winner;
-  if (w === null) return "無勝負 · 指し直し";
+  if (w === null) return "無勝負";
   if (session.mode === "local") return `${players[w].name}獲勝`;
   return w === session.mySide ? "勝利" : "敗北";
 }
@@ -902,7 +904,7 @@ $("#undo").onclick = () => {
   lastTick = Date.now();
   render();
   scheduleAI();
-  toast("已回到上一個可以思考的局面。");
+  toast("已悔棋。");
 };
 $("#hint").onclick = () => requestSearch("hint");
 function confirmAction(title, description, action) {
@@ -1033,7 +1035,8 @@ function closeNet() {
   renderNet();
 }
 let matchTimer = null,
-  pendingInvite = null;
+  pendingInvite = null,
+  onlineKind = "friend";
 function setLobby(state) {
   $("#online-page").dataset.state = state;
   clearInterval(matchTimer);
@@ -1092,10 +1095,10 @@ function renderNet() {
   $("#net-text").textContent =
     {
       idle: "尚未連線",
-      connecting: "連線伺服器中…",
+      connecting: "連線中…",
       online: "已連線",
       offline: "連線中斷，重新連線中…",
-      error: "無法連線到伺服器",
+      error: "無法連線，請確認網路後重試",
     }[netStatus] || "";
   $("#net-retry").hidden = netStatus !== "error";
   $("#room-create").disabled =
@@ -1111,6 +1114,7 @@ $("#create-form").onsubmit = async (e) => {
   e.preventDefault();
   store.room = { time: radio("room-time"), side: radio("room-side") };
   persist();
+  onlineKind = "friend";
   try {
     const code = await net.create({
       time: TIMES[store.room.time],
@@ -1130,6 +1134,7 @@ $("#match-form").onsubmit = async (e) => {
   e.preventDefault();
   store.match = { time: radio("match-time") };
   persist();
+  onlineKind = "match";
   $("#match-rule").textContent = `${timeLabel("match-time")} · 隨機先後`;
   setLobby("matching");
   const room = net;
@@ -1156,6 +1161,7 @@ $("#join-form").onsubmit = async (e) => {
     $("#join-error").textContent = "請輸入 5 碼房號。";
     return;
   }
+  onlineKind = "friend";
   setLobby("joining");
   try {
     await net.join(code, publicProfile());
@@ -1207,6 +1213,7 @@ function onlineStart(detail) {
     main,
     byoyomi,
     code: detail.code,
+    kind: onlineKind,
     players: mySide ? [opponent, store.profile] : [store.profile, opponent],
   });
   toast(detail.game > 1 ? "再戰開始！" : "對局開始！");
@@ -1487,7 +1494,7 @@ $("#avatar-file").onchange = async (e) => {
     file.size > 5 * 1024 * 1024
   ) {
     $("#profile-error").textContent =
-      "請選擇 5 MB 以下的 PNG、JPG 或 WebP 圖片。";
+      "請選擇 5 MB 以內的圖片。";
     return;
   }
   const url = URL.createObjectURL(file);
@@ -1538,7 +1545,7 @@ $("#network-form").onsubmit = (e) => {
   e.preventDefault();
   const url = $("#broker-url").value.trim();
   if (!/^wss?:\/\/\S+$/.test(url)) {
-    $("#broker-error").textContent = "請輸入 ws:// 或 wss:// 開頭的網址。";
+    $("#broker-error").textContent = "網址格式不正確，請確認後再試。";
     return;
   }
   store.broker = url;

@@ -1609,13 +1609,6 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   letter-spacing: 0.3em;
   color: var(--kin);
 }
-.mode-text em {
-  margin-top: 4px;
-  font-size: 12px;
-  font-style: normal;
-  line-height: 1.5;
-  color: var(--muted);
-}
 .lobby-panel {
   margin-top: 16px;
   padding: 22px 20px;
@@ -1629,17 +1622,9 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin: 0 0 6px;
+  margin: 0 0 14px;
   font: 600 17px var(--mincho);
   letter-spacing: 0.18em;
-}
-.panel-head small {
-  font: 9px var(--display);
-  letter-spacing: 0.35em;
-  color: var(--kin);
-}
-.friend-panel .card-note {
-  margin-bottom: 16px;
 }
 .or-divider {
   display: flex;
@@ -1690,6 +1675,7 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   display: none;
 }
 .invite-note {
+  margin: -6px 0 10px;
   color: var(--kin-light);
 }
 .card-note {
@@ -2692,9 +2678,6 @@ dialog::backdrop {
   }
   .mode-text b {
     font-size: 16px;
-  }
-  .mode-text em {
-    display: none;
   }
   .lobby-panel {
     padding: 18px 14px;
