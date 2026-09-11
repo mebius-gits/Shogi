@@ -1526,10 +1526,11 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
 .matching {
   display: none;
 }
+/* Lobby: first pick who to play (anyone / a friend), then only that path's
+   options are shown. */
 .online-page[data-state="lobby"] .lobby {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  display: flex;
+  flex-direction: column;
 }
 .online-page[data-state="waiting"] .waiting,
 .online-page[data-state="joining"] .joining,
@@ -1540,61 +1541,156 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   gap: 14px;
   padding: 30px 0 10px;
 }
-.lobby-card {
+.mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mode-picker button {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  padding: 20px 20px 22px;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 16px 14px;
   border: 1px solid var(--line);
+  background: var(--field);
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.mode-picker button:hover {
+  border-color: #c9a45c88;
+}
+.mode-picker button[aria-selected="true"] {
+  border-color: var(--kin);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--shu) 30%, transparent), color-mix(in srgb, var(--shu) 10%, transparent));
+  box-shadow: inset 0 0 0 1px var(--kin);
+}
+/* The selected card points down into its panel. */
+.mode-picker button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid var(--kin);
+  border-bottom: 1px solid var(--kin);
   background: var(--card);
 }
-.lobby-card h2 {
+.mode-seal {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kin);
+  color: var(--kin-light);
+  font: 600 24px var(--mincho);
+}
+.mode-picker button[aria-selected="true"] .mode-seal {
+  border-color: transparent;
+  background: linear-gradient(160deg, var(--shu-light), var(--shu));
+  color: #fff;
+}
+.mode-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.mode-text b {
+  font: 600 18px var(--mincho);
+  letter-spacing: 0.18em;
+}
+.mode-text small {
+  font: 9px var(--display);
+  letter-spacing: 0.3em;
+  color: var(--kin);
+}
+.mode-text em {
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: normal;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.lobby-panel {
+  margin-top: 16px;
+  padding: 22px 20px;
+  border: 1px solid var(--kin);
+  background: var(--card);
+}
+.lobby-panel .primary {
+  margin-bottom: 12px;
+}
+.panel-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin: 0 0 18px;
-  font: 600 19px var(--mincho);
-  letter-spacing: 0.2em;
+  margin: 0 0 6px;
+  font: 600 17px var(--mincho);
+  letter-spacing: 0.18em;
 }
-.lobby-card h2 small {
+.panel-head small {
   font: 9px var(--display);
   letter-spacing: 0.35em;
   color: var(--kin);
 }
-.lobby-card .primary {
-  margin-top: auto;
-}
-.lobby-card .field {
-  margin-top: 0;
-}
-.match-card {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.42fr);
-  grid-template-areas:
-    "head head"
-    "note note"
-    "choice start";
-  gap: 0 18px;
-  align-items: end;
-  border-color: #c9a45c66;
-}
-.match-card h2 {
-  grid-area: head;
-  margin-bottom: 8px;
-}
-.match-card .card-note {
-  grid-area: note;
+.friend-panel .card-note {
   margin-bottom: 16px;
 }
-.match-card .choice {
-  grid-area: choice;
-  margin: 0;
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0 18px;
+  font: 13px var(--mincho);
+  letter-spacing: 0.3em;
+  color: var(--muted);
 }
-.match-card .primary {
-  grid-area: start;
-  min-height: 52px;
-  padding-inline: 12px;
-  white-space: nowrap;
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.join-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+.join-row .primary {
+  margin: 0;
+  padding-inline: 28px;
+}
+.code-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 0 6px 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--field);
+  text-align: center;
+  font: 600 30px var(--num);
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.code-input:focus {
+  outline: none;
+  border-color: var(--kin);
+}
+.join-row + .form-error {
+  margin: 8px 0 0;
+}
+.join-row + .form-error:empty {
+  display: none;
+}
+.invite-note {
+  color: var(--kin-light);
 }
 .card-note {
   margin: 0;
@@ -1609,12 +1705,17 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
   color: var(--kin-light);
   text-shadow: 0 0 24px #c9a45c55;
 }
-.field input.code-input {
-  padding-left: 0.4em;
-  text-align: center;
-  font: 600 34px var(--num);
-  letter-spacing: 0.4em;
-  text-transform: uppercase;
+.waiting-lead {
+  margin: 0;
+  font: 14px var(--mincho);
+  letter-spacing: 0.12em;
+  color: var(--soft);
+}
+.share-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
 }
 .room-code {
   padding: 8px 12px 8px 28px;
@@ -2354,16 +2455,8 @@ dialog::backdrop {
   }
 }
 @media (max-width: 800px) {
-  .setup-grid,
-  .online-page[data-state="lobby"] .lobby {
+  .setup-grid {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .match-card {
-    display: flex;
-    align-items: stretch;
-  }
-  .match-card .choice {
-    margin-bottom: 20px;
   }
   .opponent-art {
     min-height: 240px;
@@ -2553,25 +2646,65 @@ dialog::backdrop {
     font-size: 13px;
   }
   .board-actions {
-    gap: 8px;
-    padding: 0 8px;
+    width: 100%;
+    max-width: 330px;
+    gap: 7px 10px;
+    margin-inline: auto;
+    padding: 0 6px;
   }
   .board-actions button {
     flex: 1;
+    gap: 6px;
     min-width: 0;
-    padding: 10px 6px;
+    padding: 7px 4px;
     font-size: 12px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
+  }
+  .board-actions button i {
+    width: 14px;
+    font-size: 12px;
   }
   .sub-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
   }
   .sub-actions button {
     min-width: 0;
-    padding: 8px 6px;
+    padding: 6px 4px;
+    font-size: 12px;
+  }
+  .mode-picker {
+    gap: 8px;
+  }
+  .mode-picker button {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 8px 12px;
+    text-align: center;
+  }
+  .mode-seal {
+    width: 40px;
+    height: 40px;
+    font-size: 21px;
+  }
+  .mode-text b {
+    font-size: 16px;
+  }
+  .mode-text em {
+    display: none;
+  }
+  .lobby-panel {
+    padding: 18px 14px;
+  }
+  .code-input {
+    font-size: 24px;
+    letter-spacing: 0.3em;
+  }
+  .join-row .primary {
+    padding-inline: 18px;
   }
   /* Home fills exactly one screen: the hero takes whatever height the menu
      leaves, so every mode is reachable without scrolling. */

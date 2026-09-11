@@ -45,11 +45,26 @@ const net = { timeout: 15000 };
 try {
   const host = await player("房主"),
     guest = await player("訪客");
+  await expect(host.page.locator("#friend-panel")).toBeHidden();
+  await host.page.locator('[data-online-mode="friend"]').click();
+  await expect(host.page.locator("#match-form")).toBeHidden();
   await host.page.locator('#create-form button[type="submit"]').click();
   const code = host.page.locator("#room-code-display");
   await expect(code).toHaveText(/^[A-Z2-9]{5}$/, net);
   await host.page.screenshot({ path: "docs/preview/online-waiting.png" });
-  await guest.page.locator("#room-code-input").fill(await code.textContent());
+  // The guest follows an invite link: friend lobby opens with the code filled.
+  await guest.page.goto(
+    `http://127.0.0.1:4174/#/join/${await code.textContent()}`,
+  );
+  await expect(guest.page.locator('[data-online-mode="friend"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(guest.page.locator("#room-code-input")).toHaveValue(
+    await code.textContent(),
+  );
+  await expect(guest.page.locator("#invite-note")).toBeVisible();
+  expect(guest.page.url()).toMatch(/#\/online$/);
   await guest.page.locator('#join-form button[type="submit"]').click();
   for (const { page } of [host, guest]) {
     await expect(page.locator("#play-page")).toBeVisible(net);
@@ -110,6 +125,7 @@ try {
   await expect(guest.page.locator("#result-again")).toBeDisabled(net);
 
   const solo = await player("單人");
+  await solo.page.locator('[data-online-mode="friend"]').click();
   await solo.page.locator("#room-code-input").fill("ZZZZ2");
   await solo.page.locator('#join-form button[type="submit"]').click();
   await expect(solo.page.locator("#join-error")).toHaveText(

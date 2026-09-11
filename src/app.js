@@ -50,6 +50,7 @@ let store = {
   local: { name: "對手", time: "0" },
   room: { time: "300:10", side: "random" },
   match: { time: "300:10" },
+  online: { mode: "match" },
 };
 function loadStore() {
   try {
@@ -87,6 +88,9 @@ function loadStore() {
       side: pick(data.room?.side, ["0", "1", "random"], "random"),
     };
     store.match = { time: pick(data.match?.time, times, "300:10") };
+    store.online = {
+      mode: pick(data.online?.mode, ["match", "friend"], "match"),
+    };
     if (old) localStorage.removeItem("sakurama-shogi-v1");
   } catch (error) {
     console.warn("Could not read preferences:", error.message);
@@ -162,6 +166,13 @@ for (let i = 0; i < 14; i++) {
 }
 
 function navigate(name, replace = false) {
+  // Invite links (#/join/ABCDE) open the friend lobby with the code filled in.
+  const invite = /^join\/([A-Za-z0-9]{5})$/.exec(name);
+  if (invite) {
+    pendingInvite = cleanRoomCode(invite[1]);
+    name = "online";
+    replace = true;
+  }
   if (!document.getElementById(name + "-page")) name = "home";
   if (name === "play" && !session) name = "home";
   if (currentPage === "play" && name !== "play" && session) {
@@ -1021,7 +1032,8 @@ function closeNet() {
   netStatus = "idle";
   renderNet();
 }
-let matchTimer = null;
+let matchTimer = null,
+  pendingInvite = null;
 function setLobby(state) {
   $("#online-page").dataset.state = state;
   clearInterval(matchTimer);
@@ -1038,11 +1050,42 @@ function setLobby(state) {
 const timeLabel = (name) =>
   $(`input[name="${name}"]:checked + span`).firstChild.textContent.trim();
 function enterLobby() {
+  if ($("#online-page").dataset.state !== "lobby") net?.cancel();
   setLobby("lobby");
   $("#join-error").textContent = "";
+  $("#invite-note").hidden = !pendingInvite;
+  if (pendingInvite) {
+    showOnlineMode("friend");
+    $("#room-code-input").value = pendingInvite;
+    pendingInvite = null;
+  } else showOnlineMode(store.online.mode);
   if (!net) createNet();
   net.connect().catch(() => {});
 }
+function showOnlineMode(mode, save = false) {
+  for (const b of $$("[data-online-mode]"))
+    b.setAttribute("aria-selected", b.dataset.onlineMode === mode);
+  for (const panel of $$("[data-online-panel]"))
+    panel.hidden = panel.dataset.onlinePanel !== mode;
+  if (save) {
+    store.online = { mode };
+    persist();
+  }
+}
+$$("[data-online-mode]").forEach((b) => {
+  b.onclick = () => showOnlineMode(b.dataset.onlineMode, true);
+  b.onkeydown = (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const other = $$("[data-online-mode]").find((x) => x !== b);
+    other.focus();
+    other.click();
+  };
+});
+// Links to 127.0.0.1 or localhost only work on this computer, so only offer
+// an invite link when the page is reachable by others.
+const canInvite = () =>
+  /^https?:$/.test(location.protocol) &&
+  !/^(localhost|127(\.\d+){3}|\[::1\])$/.test(location.hostname);
 function renderNet() {
   const el = $("#net-status");
   el.dataset.state = netStatus;
@@ -1075,6 +1118,7 @@ $("#create-form").onsubmit = async (e) => {
       player: publicProfile(),
     });
     $("#room-code-display").textContent = code;
+    $("#room-share").hidden = !canInvite();
     $("#room-rule").textContent =
       `${timeLabel("room-time")} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
     setLobby("waiting");
@@ -1131,6 +1175,19 @@ $("#room-copy").onclick = async () => {
     toast("已複製房號。");
   } catch {
     toast("無法複製，請手動記下房號。");
+  }
+};
+$("#room-share").onclick = async () => {
+  const url = `${location.origin}${location.pathname}#/join/${$("#room-code-display").textContent}`;
+  try {
+    if (navigator.share)
+      await navigator.share({ title: "櫻間 Shogi", text: "來下一局將棋吧！", url });
+    else {
+      await navigator.clipboard.writeText(url);
+      toast("已複製邀請連結。");
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") toast("無法分享，請改傳房號。");
   }
 };
 $("#room-cancel").onclick = async () => {

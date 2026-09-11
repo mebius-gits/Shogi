@@ -158,9 +158,42 @@
           ><button class="text-button" hidden="" id="net-retry">重試</button>
         </div>
         <div class="lobby">
-          <form class="lobby-card match-card" id="match-form">
-            <h2>隨機配對<small>RANDOM MATCH</small></h2>
-            <p class="card-note">與正在等待的玩家配對，先後手隨機決定。</p>
+          <div aria-label="對手" class="mode-picker" role="tablist">
+            <button
+              aria-controls="match-form"
+              aria-selected="true"
+              data-online-mode="match"
+              id="mode-match"
+              role="tab"
+            >
+              <span class="mode-seal">縁</span
+              ><span class="mode-text"
+                ><b>隨機配對</b><small>QUICK MATCH</small
+                ><em>和線上任何一位玩家對局</em></span
+              >
+            </button>
+            <button
+              aria-controls="friend-panel"
+              aria-selected="false"
+              data-online-mode="friend"
+              id="mode-friend"
+              role="tab"
+            >
+              <span class="mode-seal">友</span
+              ><span class="mode-text"
+                ><b>好友對戰</b><small>WITH FRIEND</small
+                ><em>邀請朋友，或加入朋友的房間</em></span
+              >
+            </button>
+          </div>
+
+          <form
+            aria-labelledby="mode-match"
+            class="lobby-panel"
+            data-online-panel="match"
+            id="match-form"
+            role="tabpanel"
+          >
             <fieldset class="choice">
               <legend>對局用時</legend>
               <label><input name="match-time" type="radio" value="0" /><span>無限時</span></label
@@ -168,49 +201,74 @@
               ><label><input name="match-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
             </fieldset>
             <button class="primary full" id="match-start" type="submit">
-              開始配對
+              開始配對<small>MATCH</small>
             </button>
+            <p class="card-note">
+              和選擇相同用時、正在等待的玩家配對，先後手隨機決定。
+            </p>
           </form>
-          <form class="lobby-card" id="create-form">
-            <h2>建立房間<small>CREATE</small></h2>
-            <fieldset class="choice">
-              <legend>對局用時</legend>
-              <label><input name="room-time" type="radio" value="0" /><span>無限時</span></label
-              ><label><input name="room-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
-              ><label><input name="room-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
-            </fieldset>
-            <fieldset class="choice">
-              <legend>我的先後手</legend>
-              <label><input name="room-side" type="radio" value="0" /><span>先手</span></label
-              ><label><input name="room-side" type="radio" value="1" /><span>後手</span></label
-              ><label><input name="room-side" type="radio" value="random" /><span>隨機</span></label>
-            </fieldset>
-            <button class="primary full" id="room-create" type="submit">
-              建立房間
-            </button>
-          </form>
-          <form class="lobby-card" id="join-form">
-            <h2>加入房間<small>JOIN</small></h2>
-            <label class="field"
-              >房號<input
-                autocapitalize="characters"
-                autocomplete="off"
-                class="code-input"
-                id="room-code-input"
-                maxlength="5"
-                placeholder="ABCDE"
-                spellcheck="false"
-            /></label>
-            <p class="form-error" id="join-error" role="alert"></p>
-            <button class="primary full" id="room-join" type="submit">
-              加入房間
-            </button>
-          </form>
+
+          <div
+            aria-labelledby="mode-friend"
+            class="lobby-panel friend-panel"
+            data-online-panel="friend"
+            hidden=""
+            id="friend-panel"
+            role="tabpanel"
+          >
+            <form id="create-form">
+              <h2 class="panel-head">建立房間<small>CREATE</small></h2>
+              <p class="card-note">建立後把房號或邀請連結傳給朋友，對方加入就開始。</p>
+              <fieldset class="choice">
+                <legend>對局用時</legend>
+                <label><input name="room-time" type="radio" value="0" /><span>無限時</span></label
+                ><label><input name="room-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+                ><label><input name="room-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+              </fieldset>
+              <fieldset class="choice">
+                <legend>我的先後手</legend>
+                <label><input name="room-side" type="radio" value="0" /><span>先手</span></label
+                ><label><input name="room-side" type="radio" value="1" /><span>後手</span></label
+                ><label><input name="room-side" type="radio" value="random" /><span>隨機</span></label>
+              </fieldset>
+              <button class="primary full" id="room-create" type="submit">
+                建立房間
+              </button>
+            </form>
+            <div class="or-divider"><span>或</span></div>
+            <form id="join-form">
+              <h2 class="panel-head">收到房號了？<small>JOIN</small></h2>
+              <p class="card-note invite-note" hidden="" id="invite-note">
+                已帶入邀請的房號，按「加入」就能開始。
+              </p>
+              <div class="join-row">
+                <input
+                  aria-label="房號"
+                  autocapitalize="characters"
+                  autocomplete="off"
+                  class="code-input"
+                  id="room-code-input"
+                  maxlength="5"
+                  placeholder="ABCDE"
+                  spellcheck="false"
+                /><button class="primary" id="room-join" type="submit">
+                  加入
+                </button>
+              </div>
+              <p class="form-error" id="join-error" role="alert"></p>
+            </form>
+          </div>
         </div>
         <div class="waiting">
           <span class="eyebrow">ROOM CODE</span>
+          <p class="waiting-lead">把房號告訴朋友，對方加入後就會開始</p>
           <div class="room-code" id="room-code-display"></div>
-          <button class="secondary" id="room-copy">複製房號</button>
+          <div class="share-buttons">
+            <button class="secondary" id="room-copy">複製房號</button
+            ><button class="secondary" hidden="" id="room-share">
+              分享邀請連結
+            </button>
+          </div>
           <p class="waiting-text">等待對手加入<i></i><i></i><i></i></p>
           <p class="room-rule" id="room-rule"></p>
           <button class="text-button" id="room-cancel">取消房間</button>
