@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width,initial-scale=1" name="viewport" />
-    <meta content="#121726" name="theme-color" />
+    <meta content="#1b1210" name="theme-color" />
     <title>櫻間 Shogi — 一局入心</title>
     <link href="src/style.css" rel="stylesheet" />
     <link
@@ -15,7 +15,7 @@
       { "imports": { "three": "./vendor/three.module.js" } }
     </script>
   </head>
-  <body>
+  <body data-theme="sunset">
     <header class="header">
       <a class="brand" href="#/home"
         ><span class="seal">将</span
@@ -158,52 +158,124 @@
           ><button class="text-button" hidden="" id="net-retry">重試</button>
         </div>
         <div class="lobby">
-          <form class="lobby-card" id="create-form">
-            <h2>建立房間<small>CREATE</small></h2>
+          <div aria-label="對手" class="mode-picker" role="tablist">
+            <button
+              aria-controls="match-form"
+              aria-selected="true"
+              data-online-mode="match"
+              id="mode-match"
+              role="tab"
+            >
+              <span class="mode-seal">縁</span
+              ><span class="mode-text"
+                ><b>隨機配對</b><small>QUICK MATCH</small></span
+              >
+            </button>
+            <button
+              aria-controls="friend-panel"
+              aria-selected="false"
+              data-online-mode="friend"
+              id="mode-friend"
+              role="tab"
+            >
+              <span class="mode-seal">友</span
+              ><span class="mode-text"
+                ><b>好友對戰</b><small>WITH FRIEND</small></span
+              >
+            </button>
+          </div>
+
+          <form
+            aria-labelledby="mode-match"
+            class="lobby-panel"
+            data-online-panel="match"
+            id="match-form"
+            role="tabpanel"
+          >
             <fieldset class="choice">
               <legend>對局用時</legend>
-              <label><input name="room-time" type="radio" value="0" /><span>無限時</span></label
-              ><label><input name="room-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
-              ><label><input name="room-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+              <label><input name="match-time" type="radio" value="0" /><span>無限時</span></label
+              ><label><input name="match-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+              ><label><input name="match-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
             </fieldset>
-            <fieldset class="choice">
-              <legend>我的先後手</legend>
-              <label><input name="room-side" type="radio" value="0" /><span>先手</span></label
-              ><label><input name="room-side" type="radio" value="1" /><span>後手</span></label
-              ><label><input name="room-side" type="radio" value="random" /><span>隨機</span></label>
-            </fieldset>
-            <button class="primary full" id="room-create" type="submit">
-              建立房間
+            <button class="primary full" id="match-start" type="submit">
+              開始配對
             </button>
           </form>
-          <form class="lobby-card" id="join-form">
-            <h2>加入房間<small>JOIN</small></h2>
-            <label class="field"
-              >房號<input
-                autocapitalize="characters"
-                autocomplete="off"
-                class="code-input"
-                id="room-code-input"
-                maxlength="5"
-                placeholder="ABCDE"
-                spellcheck="false"
-            /></label>
-            <p class="form-error" id="join-error" role="alert"></p>
-            <button class="primary full" id="room-join" type="submit">
-              加入房間
-            </button>
-          </form>
+
+          <div
+            aria-labelledby="mode-friend"
+            class="lobby-panel friend-panel"
+            data-online-panel="friend"
+            hidden=""
+            id="friend-panel"
+            role="tabpanel"
+          >
+            <form id="create-form">
+              <h2 class="panel-head">建立房間</h2>
+              <fieldset class="choice">
+                <legend>對局用時</legend>
+                <label><input name="room-time" type="radio" value="0" /><span>無限時</span></label
+                ><label><input name="room-time" type="radio" value="300:10" /><span>5分<small>讀秒 10 秒</small></span></label
+                ><label><input name="room-time" type="radio" value="600:30" /><span>10分<small>讀秒 30 秒</small></span></label>
+              </fieldset>
+              <fieldset class="choice">
+                <legend>我的先後手</legend>
+                <label><input name="room-side" type="radio" value="0" /><span>先手</span></label
+                ><label><input name="room-side" type="radio" value="1" /><span>後手</span></label
+                ><label><input name="room-side" type="radio" value="random" /><span>隨機</span></label>
+              </fieldset>
+              <button class="primary full" id="room-create" type="submit">
+                建立房間
+              </button>
+            </form>
+            <div class="or-divider"><span>或</span></div>
+            <form id="join-form">
+              <h2 class="panel-head">加入朋友的房間</h2>
+              <p class="card-note invite-note" hidden="" id="invite-note">
+                朋友邀請你加入這個房間
+              </p>
+              <div class="join-row">
+                <input
+                  aria-label="房號"
+                  autocapitalize="characters"
+                  autocomplete="off"
+                  class="code-input"
+                  id="room-code-input"
+                  maxlength="5"
+                  placeholder="ABCDE"
+                  spellcheck="false"
+                /><button class="primary" id="room-join" type="submit">
+                  加入
+                </button>
+              </div>
+              <p class="form-error" id="join-error" role="alert"></p>
+            </form>
+          </div>
         </div>
         <div class="waiting">
           <span class="eyebrow">ROOM CODE</span>
+          <p class="waiting-lead">把房號傳給朋友</p>
           <div class="room-code" id="room-code-display"></div>
-          <button class="secondary" id="room-copy">複製房號</button>
+          <div class="share-buttons">
+            <button class="secondary" id="room-copy">複製房號</button
+            ><button class="secondary" hidden="" id="room-share">
+              分享邀請連結
+            </button>
+          </div>
           <p class="waiting-text">等待對手加入<i></i><i></i><i></i></p>
           <p class="room-rule" id="room-rule"></p>
           <button class="text-button" id="room-cancel">取消房間</button>
         </div>
         <div class="joining">
           <p class="waiting-text">進入房間中<i></i><i></i><i></i></p>
+        </div>
+        <div class="matching">
+          <span class="eyebrow">RANDOM MATCH</span>
+          <p class="waiting-text">尋找對手中<i></i><i></i><i></i></p>
+          <p class="room-rule" id="match-rule"></p>
+          <strong class="match-elapsed" id="match-elapsed">0:00</strong>
+          <button class="text-button" id="match-cancel">取消配對</button>
         </div>
       </section>
 
@@ -360,7 +432,7 @@
           </p>
           <h3>讀秒與連線</h3>
           <p>
-            主時間用完後，每手可使用的時間，落子後重設。動畫時間不計入。連線對戰中離開或斷線超過
+            主時間用完後進入讀秒，每一手都要在讀秒時間內下完，落子動畫不計時。連線對戰中離開或斷線超過
             60 秒判負。
           </p>
           <p class="source-note">
@@ -394,7 +466,7 @@
         ><button aria-selected="false" data-tab="room" role="tab">
           棋室<small>ROOM</small></button
         ><button aria-selected="false" data-tab="network" role="tab">
-          連線<small>NETWORK</small>
+          進階<small>ADVANCED</small>
         </button>
       </div>
       <form class="tab-panel" data-panel="profile" id="profile-form">
@@ -417,13 +489,13 @@
             placeholder="輸入你的名字"
             required=""
         /></label>
-        <p class="field-note">PNG / JPG / WebP · 5 MB 以內</p>
+        <p class="field-note">頭像圖片 5 MB 以內</p>
         <div class="form-error" id="profile-error" role="alert"></div>
         <button class="primary full" type="submit">儲存<small>SAVE</small></button>
       </form>
       <div class="tab-panel" data-panel="room" hidden="">
         <label class="setting-row"
-          ><b>和服手部動畫</b
+          ><b>落子動畫</b
           ><input checked="" id="animation-setting" type="checkbox" /></label
         ><label class="setting-row"
           ><b>落子速度</b
@@ -433,7 +505,7 @@
             <option value="2600">慢賞</option>
           </select></label
         ><label class="setting-row"
-          ><b>合法走位提示</b
+          ><b>顯示可走位置</b
           ><input checked="" id="legal-setting" type="checkbox"
         /></label>
         <section class="ambience">
@@ -455,13 +527,15 @@
       </div>
       <form class="tab-panel" data-panel="network" hidden="" id="network-form">
         <label class="field"
-          >MQTT Broker（WebSocket）<input
+          >連線對戰伺服器<input
             autocomplete="off"
             id="broker-url"
             placeholder="wss://broker.emqx.io:8084/mqtt"
             spellcheck="false"
         /></label>
-        <p class="field-note">預設為公開測試伺服器，名稱與頭像會以明文傳送。</p>
+        <p class="field-note">
+          一般不需要更改。預設的伺服器是公開的，對戰時你的名稱與頭像別人也看得到。
+        </p>
         <div class="form-error" id="broker-error" role="alert"></div>
         <div class="dialog-buttons">
           <button class="secondary" id="broker-reset" type="button">恢復預設</button

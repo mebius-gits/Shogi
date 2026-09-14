@@ -130,12 +130,17 @@ try {
     );
   }
   const stage = await page.locator("#board-stage").boundingBox();
-  const topAvatar = await page.locator("#seat-top .avatar").boundingBox(),
-    bottomAvatar = await page.locator("#seat-bottom .avatar").boundingBox();
+  const topSeat = await page.locator("#seat-top").boundingBox(),
+    bottomSeat = await page.locator("#seat-bottom").boundingBox();
   assert.ok(
-    topAvatar.x + topAvatar.width <= stage.x &&
-      bottomAvatar.x >= stage.x + stage.width,
-    "Avatars stay at the left and right of the board",
+    topSeat.y + topSeat.height <= stage.y &&
+      bottomSeat.y >= stage.y + stage.height,
+    "Player bars sit above and below the board on phones",
+  );
+  assert.ok(stage.width >= 390 - 24, "Board uses the full phone width");
+  assert.ok(
+    bottomSeat.y + bottomSeat.height <= 844,
+    "Board and both player bars fit on one phone screen",
   );
   assert.ok(await noHorizontalScroll());
   await page.screenshot({ path: "docs/preview/redesign-mobile.png", fullPage: true });
@@ -167,6 +172,17 @@ try {
     path: "docs/preview/redesign-home-mobile.png",
     fullPage: true,
   });
+  // A phone with browser toolbars still shows every mode without scrolling.
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.waitForTimeout(150);
+  const menuBottom = await page
+    .locator('#home-page [data-page-link="rules"]')
+    .evaluate((e) => e.getBoundingClientRect().bottom);
+  assert.ok(menuBottom <= 640, "Home menu fits on a 360x640 screen");
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollHeight),
+    640,
+  );
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator("#profile-edit").click();
@@ -177,6 +193,9 @@ try {
     /^data:/,
   );
   await page.locator('#profile-form button[type="submit"]').click();
+  await expect(page.locator("#settings-dialog")).toBeHidden();
+  await expect(page.locator("#home-name")).toHaveText("櫻花棋士");
+  await page.locator("#settings-open").click();
   await page.locator('[data-tab="room"]').click();
   await page.locator('[data-theme="night"]').click();
   await page.locator("#shadow-toggle").click();

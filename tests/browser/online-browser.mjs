@@ -45,11 +45,26 @@ const net = { timeout: 15000 };
 try {
   const host = await player("房主"),
     guest = await player("訪客");
+  await expect(host.page.locator("#friend-panel")).toBeHidden();
+  await host.page.locator('[data-online-mode="friend"]').click();
+  await expect(host.page.locator("#match-form")).toBeHidden();
   await host.page.locator('#create-form button[type="submit"]').click();
   const code = host.page.locator("#room-code-display");
   await expect(code).toHaveText(/^[A-Z2-9]{5}$/, net);
   await host.page.screenshot({ path: "docs/preview/online-waiting.png" });
-  await guest.page.locator("#room-code-input").fill(await code.textContent());
+  // The guest follows an invite link: friend lobby opens with the code filled.
+  await guest.page.goto(
+    `http://127.0.0.1:4174/#/join/${await code.textContent()}`,
+  );
+  await expect(guest.page.locator('[data-online-mode="friend"]')).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(guest.page.locator("#room-code-input")).toHaveValue(
+    await code.textContent(),
+  );
+  await expect(guest.page.locator("#invite-note")).toBeVisible();
+  expect(guest.page.url()).toMatch(/#\/online$/);
   await guest.page.locator('#join-form button[type="submit"]').click();
   for (const { page } of [host, guest]) {
     await expect(page.locator("#play-page")).toBeVisible(net);
@@ -110,16 +125,57 @@ try {
   await expect(guest.page.locator("#result-again")).toBeDisabled(net);
 
   const solo = await player("單人");
+  await solo.page.locator('[data-online-mode="friend"]').click();
   await solo.page.locator("#room-code-input").fill("ZZZZ2");
   await solo.page.locator('#join-form button[type="submit"]').click();
   await expect(solo.page.locator("#join-error")).toHaveText(
     "找不到這個房間。",
     net,
   );
-  for (const p of [host, guest, solo]) await p.context.close();
+
+  // Random matching: an unlimited-time seeker waits, cancels, seeks again and
+  // is found by a second seeker. Unlimited time keeps this test away from the
+  // 5-minute pool the online screenshots use.
+  const seekers = [await player("甲"), await player("乙")];
+  const seek = async ({ page }) => {
+    await page.locator('input[name="match-time"][value="0"] + span').click();
+    await page.locator("#match-start").click();
+    await expect(page.locator("#online-page")).toHaveAttribute(
+      "data-state",
+      "matching",
+    );
+  };
+  await seek(seekers[0]);
+  await expect(seekers[0].page.locator("#match-rule")).toHaveText(
+    "無限時 · 隨機先後",
+  );
+  await seekers[0].page.locator("#match-cancel").click();
+  await expect(seekers[0].page.locator("#online-page")).toHaveAttribute(
+    "data-state",
+    "lobby",
+  );
+  await seek(seekers[0]);
+  await seekers[0].page.waitForTimeout(2500);
+  await seek(seekers[1]);
+  for (const { page } of seekers)
+    await expect(page.locator("#play-page")).toBeVisible(net);
+  await expect(seekers[0].page.locator("#seat-top .name")).toHaveText("乙");
+  await expect(seekers[1].page.locator("#seat-top .name")).toHaveText("甲");
+  const sides = await Promise.all(
+    seekers.map(({ page }) =>
+      page.locator("#seat-bottom .side-name").textContent(),
+    ),
+  );
+  assert.deepEqual(sides.toSorted(), ["先手", "後手"]);
+  await expect(seekers[0].page.locator("#seat-bottom .clock")).toHaveText("∞");
+  const [first, second] = sides[0] === "先手" ? seekers : seekers.toReversed();
+  await move(first.page, 56, 47);
+  await expect(second.page.locator("#side-moves button")).toHaveCount(1, net);
+
+  for (const p of [host, guest, solo, ...seekers]) await p.context.close();
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: MQTT room create/join, synced moves and clocks, no assists online, resign result on both sides, rematch with swapped sides, leaving counts as resign, missing room error.",
+    "PASS: MQTT room create/join, synced moves and clocks, no assists online, resign result on both sides, rematch with swapped sides, leaving counts as resign, missing room error, random match with cancel and retry.",
   );
 } finally {
   await browser.close();

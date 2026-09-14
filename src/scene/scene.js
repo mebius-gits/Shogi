@@ -274,7 +274,7 @@ export class BoardScene {
       e.preventDefault();
       container.dispatchEvent(
         new CustomEvent("rendererror", {
-          detail: "圖形連線中斷，請重新整理頁面。",
+          detail: "棋盤畫面出錯，請重新整理頁面。",
         }),
       );
     });

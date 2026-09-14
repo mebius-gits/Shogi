@@ -43,7 +43,8 @@ const pick = (value, allowed, fallback) =>
 
 let store = {
   prefs: {
-    theme: "spring",
+    theme: "sunset",
+    themeChosen: false,
     sound: true,
     shadows: true,
     animation: true,
@@ -55,6 +56,8 @@ let store = {
   cpu: { level: "3", side: "0", time: "0" },
   local: { name: "對手", time: "0" },
   room: { time: "300:10", side: "random" },
+  match: { time: "300:10" },
+  online: { mode: "match" },
 };
 function loadStore() {
   try {
@@ -68,7 +71,12 @@ function loadStore() {
     };
     const p = { ...store.prefs, ...data.prefs };
     store.prefs = {
-      theme: pick(p.theme, ["spring", "sunset", "night"], "spring"),
+      // Only a theme the player picked sticks; everyone else follows the
+      // default (older saves stored "spring" without the player choosing it).
+      theme: p.themeChosen
+        ? pick(p.theme, ["spring", "sunset", "night"], "sunset")
+        : "sunset",
+      themeChosen: p.themeChosen === true,
       sound: p.sound !== false,
       shadows: p.shadows !== false,
       animation: p.animation !== false,
@@ -90,6 +98,10 @@ function loadStore() {
     store.room = {
       time: pick(data.room?.time, times, "300:10"),
       side: pick(data.room?.side, ["0", "1", "random"], "random"),
+    };
+    store.match = { time: pick(data.match?.time, times, "300:10") };
+    store.online = {
+      mode: pick(data.online?.mode, ["match", "friend"], "match"),
     };
     if (old) localStorage.removeItem("sakurama-shogi-v1");
   } catch (error) {
@@ -154,7 +166,7 @@ try {
 } catch (error) {
   console.error(error);
   $("#loading").innerHTML =
-    '<span class="loading-seal">将</span><p>無法啟用 WebGL，請開啟瀏覽器硬體加速後重新整理。</p>';
+    '<span class="loading-seal">将</span><p>這個瀏覽器無法顯示 3D 棋盤。請更新瀏覽器，或在瀏覽器設定中開啟「硬體加速」後重新整理。</p>';
   throw error;
 }
 $("#board-canvas").addEventListener("rendererror", (e) => toast(e.detail));
@@ -166,6 +178,13 @@ for (let i = 0; i < 14; i++) {
 }
 
 function navigate(name, replace = false) {
+  // Invite links (#/join/ABCDE) open the friend lobby with the code filled in.
+  const invite = /^join\/([A-Za-z0-9]{5})$/.exec(name);
+  if (invite) {
+    pendingInvite = cleanRoomCode(invite[1]);
+    name = "online";
+    replace = true;
+  }
   if (!document.getElementById(name + "-page")) name = "home";
   if (name === "play" && !session) name = "home";
   if (currentPage === "play" && name !== "play" && session) {
@@ -485,7 +504,9 @@ function modeLabel() {
   if (!session) return "";
   if (session.mode === "ai") return "平手 · 電腦對戰";
   if (session.mode === "local") return "平手 · 同機雙人";
-  return `連線對戰 · 房號 ${session.code}`;
+  return session.kind === "match"
+    ? "連線對戰 · 隨機配對"
+    : `連線對戰 · 房號 ${session.code}`;
 }
 function render(syncBoard = true) {
   if (!session) return;
@@ -838,7 +859,7 @@ const reasonText = (reason) =>
   })[reason] || "對局已結束。";
 function resultTitle() {
   const w = game.result?.winner;
-  if (w === null) return "無勝負 · 指し直し";
+  if (w === null) return "無勝負";
   if (session.mode === "local") return `${players[w].name}獲勝`;
   return w === session.mySide ? "勝利" : "敗北";
 }
@@ -895,7 +916,7 @@ $("#undo").onclick = () => {
   lastTick = Date.now();
   render();
   scheduleAI();
-  toast("已回到上一個可以思考的局面。");
+  toast("已悔棋。");
 };
 $("#hint").onclick = () => requestSearch("hint");
 function confirmAction(title, description, action) {
@@ -1025,29 +1046,77 @@ function closeNet() {
   netStatus = "idle";
   renderNet();
 }
+let matchTimer = null,
+  pendingInvite = null,
+  onlineKind = "friend";
 function setLobby(state) {
   $("#online-page").dataset.state = state;
+  clearInterval(matchTimer);
+  if (state !== "matching") return;
+  const since = Date.now(),
+    show = () => {
+      const s = Math.floor((Date.now() - since) / 1000);
+      $("#match-elapsed").textContent =
+        `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+    };
+  show();
+  matchTimer = setInterval(show, 1000);
 }
+const timeLabel = (name) =>
+  $(`input[name="${name}"]:checked + span`).firstChild.textContent.trim();
 function enterLobby() {
+  if ($("#online-page").dataset.state !== "lobby") net?.cancel();
   setLobby("lobby");
   $("#join-error").textContent = "";
+  $("#invite-note").hidden = !pendingInvite;
+  if (pendingInvite) {
+    showOnlineMode("friend");
+    $("#room-code-input").value = pendingInvite;
+    pendingInvite = null;
+  } else showOnlineMode(store.online.mode);
   if (!net) createNet();
   net.connect().catch(() => {});
 }
+function showOnlineMode(mode, save = false) {
+  for (const b of $$("[data-online-mode]"))
+    b.setAttribute("aria-selected", b.dataset.onlineMode === mode);
+  for (const panel of $$("[data-online-panel]"))
+    panel.hidden = panel.dataset.onlinePanel !== mode;
+  if (save) {
+    store.online = { mode };
+    persist();
+  }
+}
+$$("[data-online-mode]").forEach((b) => {
+  b.onclick = () => showOnlineMode(b.dataset.onlineMode, true);
+  b.onkeydown = (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const other = $$("[data-online-mode]").find((x) => x !== b);
+    other.focus();
+    other.click();
+  };
+});
+// Links to 127.0.0.1 or localhost only work on this computer, so only offer
+// an invite link when the page is reachable by others.
+const canInvite = () =>
+  /^https?:$/.test(location.protocol) &&
+  !/^(localhost|127(\.\d+){3}|\[::1\])$/.test(location.hostname);
 function renderNet() {
   const el = $("#net-status");
   el.dataset.state = netStatus;
   $("#net-text").textContent =
     {
       idle: "尚未連線",
-      connecting: "連線伺服器中…",
+      connecting: "連線中…",
       online: "已連線",
       offline: "連線中斷，重新連線中…",
-      error: "無法連線到伺服器",
+      error: "無法連線，請確認網路後重試",
     }[netStatus] || "";
   $("#net-retry").hidden = netStatus !== "error";
-  $("#room-create").disabled = $("#room-join").disabled =
-    netStatus !== "online";
+  $("#room-create").disabled =
+    $("#room-join").disabled =
+    $("#match-start").disabled =
+      netStatus !== "online";
 }
 $("#net-retry").onclick = () => {
   closeNet();
@@ -1057,6 +1126,7 @@ $("#create-form").onsubmit = async (e) => {
   e.preventDefault();
   store.room = { time: radio("room-time"), side: radio("room-side") };
   persist();
+  onlineKind = "friend";
   try {
     const code = await net.create({
       time: TIMES[store.room.time],
@@ -1064,12 +1134,33 @@ $("#create-form").onsubmit = async (e) => {
       player: publicProfile(),
     });
     $("#room-code-display").textContent = code;
+    $("#room-share").hidden = !canInvite();
     $("#room-rule").textContent =
-      `${$(`input[name="room-time"]:checked + span`).firstChild.textContent} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
+      `${timeLabel("room-time")} · ${{ 0: "我方先手", 1: "我方後手", random: "隨機先後" }[store.room.side]}`;
     setLobby("waiting");
-  } catch {
-    toast("建立房間失敗，請稍後再試。");
+  } catch (error) {
+    if (error.message !== "cancelled") toast("建立房間失敗，請稍後再試。");
   }
+};
+$("#match-form").onsubmit = async (e) => {
+  e.preventDefault();
+  store.match = { time: radio("match-time") };
+  persist();
+  onlineKind = "match";
+  $("#match-rule").textContent = `${timeLabel("match-time")} · 隨機先後`;
+  setLobby("matching");
+  const room = net;
+  try {
+    await room.match({ time: TIMES[store.match.time], player: publicProfile() });
+  } catch {
+    if (net !== room || $("#online-page").dataset.state !== "matching") return;
+    setLobby("lobby");
+    toast("配對失敗，請稍後再試。");
+  }
+};
+$("#match-cancel").onclick = async () => {
+  setLobby("lobby");
+  await net?.cancel();
 };
 $("#room-code-input").oninput = (e) => {
   e.target.value = cleanRoomCode(e.target.value);
@@ -1082,6 +1173,7 @@ $("#join-form").onsubmit = async (e) => {
     $("#join-error").textContent = "請輸入 5 碼房號。";
     return;
   }
+  onlineKind = "friend";
   setLobby("joining");
   try {
     await net.join(code, publicProfile());
@@ -1103,6 +1195,19 @@ $("#room-copy").onclick = async () => {
     toast("無法複製，請手動記下房號。");
   }
 };
+$("#room-share").onclick = async () => {
+  const url = `${location.origin}${location.pathname}#/join/${$("#room-code-display").textContent}`;
+  try {
+    if (navigator.share)
+      await navigator.share({ title: "櫻間 Shogi", text: "來下一局將棋吧！", url });
+    else {
+      await navigator.clipboard.writeText(url);
+      toast("已複製邀請連結。");
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") toast("無法分享，請改傳房號。");
+  }
+};
 $("#room-cancel").onclick = async () => {
   await net?.cancel();
   setLobby("lobby");
@@ -1120,6 +1225,7 @@ function onlineStart(detail) {
     main,
     byoyomi,
     code: detail.code,
+    kind: onlineKind,
     players: mySide ? [opponent, store.profile] : [store.profile, opponent],
   });
   toast(detail.game > 1 ? "再戰開始！" : "對局開始！");
@@ -1306,6 +1412,7 @@ $$(".themes [data-theme]").forEach(
   (b) =>
     (b.onclick = () => {
       store.prefs.theme = b.dataset.theme;
+      store.prefs.themeChosen = true;
       applyPreferences();
       persist();
     }),
@@ -1400,7 +1507,7 @@ $("#avatar-file").onchange = async (e) => {
     file.size > 5 * 1024 * 1024
   ) {
     $("#profile-error").textContent =
-      "請選擇 5 MB 以下的 PNG、JPG 或 WebP 圖片。";
+      "請選擇 5 MB 以內的圖片。";
     return;
   }
   const url = URL.createObjectURL(file);
@@ -1444,13 +1551,14 @@ $("#profile-form").onsubmit = (e) => {
   if (offline()) players[session.mode === "ai" ? session.mySide : 0] = store.profile;
   renderHome();
   render(false);
+  $("#settings-dialog").close();
   toast("玩家資料已儲存。");
 };
 $("#network-form").onsubmit = (e) => {
   e.preventDefault();
   const url = $("#broker-url").value.trim();
   if (!/^wss?:\/\/\S+$/.test(url)) {
-    $("#broker-error").textContent = "請輸入 ws:// 或 wss:// 開頭的網址。";
+    $("#broker-error").textContent = "網址格式不正確，請確認後再試。";
     return;
   }
   store.broker = url;
@@ -1460,6 +1568,7 @@ $("#network-form").onsubmit = (e) => {
     closeNet();
     if (currentPage === "online") enterLobby();
   }
+  $("#settings-dialog").close();
   toast(online() ? "新的伺服器會在下一局使用。" : "連線設定已儲存。");
 };
 $("#broker-reset").onclick = () => {
@@ -1488,6 +1597,7 @@ setRadio("cpu-time", store.cpu.time);
 setRadio("local-time", store.local.time);
 setRadio("room-time", store.room.time);
 setRadio("room-side", store.room.side);
+setRadio("match-time", store.match.time);
 $("#local-name").value = store.local.name;
 applyPreferences();
 renderNet();

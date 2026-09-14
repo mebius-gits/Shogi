@@ -1527,54 +1527,186 @@ body[data-theme="spring"] .menu-grid button:hover:not(:disabled) small {
 }
 .lobby,
 .waiting,
-.joining {
+.joining,
+.matching {
   display: none;
 }
+/* Lobby: first pick who to play (anyone / a friend), then only that path's
+   options are shown. */
 .online-page[data-state="lobby"] .lobby {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  display: flex;
+  flex-direction: column;
 }
 .online-page[data-state="waiting"] .waiting,
-.online-page[data-state="joining"] .joining {
+.online-page[data-state="joining"] .joining,
+.online-page[data-state="matching"] .matching {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 14px;
   padding: 30px 0 10px;
 }
-.lobby-card {
+.mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.mode-picker button {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  padding: 20px 20px 22px;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 16px 14px;
   border: 1px solid var(--line);
+  background: var(--field);
+  text-align: left;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+.mode-picker button:hover {
+  border-color: #c9a45c88;
+}
+.mode-picker button[aria-selected="true"] {
+  border-color: var(--kin);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--shu) 30%, transparent), color-mix(in srgb, var(--shu) 10%, transparent));
+  box-shadow: inset 0 0 0 1px var(--kin);
+}
+/* The selected card points down into its panel. */
+.mode-picker button[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  transform: translateX(-50%) rotate(45deg);
+  border-right: 1px solid var(--kin);
+  border-bottom: 1px solid var(--kin);
   background: var(--card);
 }
-.lobby-card h2 {
+.mode-seal {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kin);
+  color: var(--kin-light);
+  font: 600 24px var(--mincho);
+}
+.mode-picker button[aria-selected="true"] .mode-seal {
+  border-color: transparent;
+  background: linear-gradient(160deg, var(--shu-light), var(--shu));
+  color: #fff;
+}
+.mode-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.mode-text b {
+  font: 600 18px var(--mincho);
+  letter-spacing: 0.18em;
+}
+.mode-text small {
+  font: 9px var(--display);
+  letter-spacing: 0.3em;
+  color: var(--kin);
+}
+.lobby-panel {
+  margin-top: 16px;
+  padding: 22px 20px;
+  border: 1px solid var(--kin);
+  background: var(--card);
+}
+.lobby-panel .primary {
+  margin-bottom: 12px;
+}
+.panel-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  margin: 0 0 18px;
-  font: 600 19px var(--mincho);
-  letter-spacing: 0.2em;
+  margin: 0 0 14px;
+  font: 600 17px var(--mincho);
+  letter-spacing: 0.18em;
 }
-.lobby-card h2 small {
-  font: 9px var(--display);
-  letter-spacing: 0.35em;
-  color: var(--kin);
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 10px 0 18px;
+  font: 13px var(--mincho);
+  letter-spacing: 0.3em;
+  color: var(--muted);
 }
-.lobby-card .primary {
-  margin-top: auto;
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
 }
-.lobby-card .field {
-  margin-top: 0;
+.join-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
-.field input.code-input {
-  padding-left: 0.4em;
+.join-row .primary {
+  margin: 0;
+  padding-inline: 28px;
+}
+.code-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 0 6px 0.4em;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--field);
   text-align: center;
-  font: 600 34px var(--num);
+  font: 600 30px var(--num);
   letter-spacing: 0.4em;
   text-transform: uppercase;
+  color: var(--text);
+}
+.code-input:focus {
+  outline: none;
+  border-color: var(--kin);
+}
+.join-row + .form-error {
+  margin: 8px 0 0;
+}
+.join-row + .form-error:empty {
+  display: none;
+}
+.invite-note {
+  margin: -6px 0 10px;
+  color: var(--kin-light);
+}
+.card-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.match-elapsed {
+  font: 600 40px var(--num);
+  letter-spacing: 0.1em;
+  color: var(--kin-light);
+  text-shadow: 0 0 24px #c9a45c55;
+}
+.waiting-lead {
+  margin: 0;
+  font: 14px var(--mincho);
+  letter-spacing: 0.12em;
+  color: var(--soft);
+}
+.share-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
 }
 .room-code {
   padding: 8px 12px 8px 28px;
@@ -2317,8 +2449,7 @@ dialog::backdrop {
   }
 }
 @media (max-width: 800px) {
-  .setup-grid,
-  .online-page[data-state="lobby"] .lobby {
+  .setup-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .opponent-art {
@@ -2352,12 +2483,23 @@ dialog::backdrop {
   .app-pages {
     padding: 12px 10px 28px;
   }
+  /* Phones: player cards become slim bars above and below the board so the
+     board can use the full width. */
   .play-layout {
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
-    gap: 8px 5px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "info"
+      "gote"
+      "board"
+      "sente"
+      "status"
+      "actions"
+      "review"
+      "record";
+    gap: 6px;
   }
   .match-info {
-    padding: 0 45px;
+    padding: 0 2px;
   }
   .match-tag {
     padding: 2px 8px;
@@ -2371,19 +2513,23 @@ dialog::backdrop {
     display: none;
   }
   .player-card {
-    gap: 6px;
-    padding: 8px 0;
-    border: 0;
-    background: none;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "avatar side name clock";
+    align-items: center;
+    gap: 0 10px;
+    padding: 5px 12px 5px 6px;
+    text-align: left;
     box-shadow: none;
   }
   .player-card.active {
-    box-shadow: none;
+    box-shadow:
+      inset 3px 0 var(--shu),
+      0 0 0 1px #c9a45c55;
   }
   .player-card.active::before,
   .side-label i,
   .player-note,
-  .clock-line small,
   .player-footer {
     display: none;
   }
@@ -2391,40 +2537,48 @@ dialog::backdrop {
     box-shadow:
       0 0 0 2px var(--bg),
       0 0 0 3px var(--kin-light),
-      0 0 12px var(--kin);
+      0 0 10px var(--kin);
   }
   .side-label {
-    font-size: 10px;
-    letter-spacing: 0.1em;
+    flex-direction: row;
+    font-size: 11px;
+    letter-spacing: 0.12em;
     padding-left: 0;
   }
   .player-card.active .side-label {
     color: var(--shu-light);
   }
   .player-card .avatar {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-width: 1px;
     box-shadow: none;
-    font-size: 16px;
+    font-size: 15px;
   }
   .player-identity {
-    gap: 6px;
+    display: contents;
   }
   .player-identity h2 {
-    max-width: 40px;
+    max-width: none;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 10px;
-    letter-spacing: 0;
+    font-size: 14px;
+    letter-spacing: 0.04em;
   }
   .clock-line {
+    width: auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
     padding: 0;
     border: 0;
   }
   .clock-line strong {
-    font-size: 13px;
+    font-size: 18px;
+  }
+  .clock-line small {
+    font-size: 10px;
   }
   .board-stage {
     height: auto;
@@ -2434,41 +2588,35 @@ dialog::backdrop {
       0 0 0 2px var(--ring),
       0 0 0 3px #c9a45c55;
   }
+  /* Full width, but never so tall that the board and both player bars
+     cannot share one screen. */
   #board-canvas {
-    aspect-ratio: 0.94;
+    width: 100%;
+    aspect-ratio: 1;
+    max-height: max(250px, calc(100dvh - 310px));
   }
   .capture-dock {
-    padding: 5px;
+    padding: 4px 6px;
   }
+  /* The player bar next to each hand already says whose it is; each piece
+     carries its own count badge and aria-label. */
   .capture-rail {
     display: block;
-    padding: 3px 5px 5px;
+    padding: 4px 6px;
   }
   .capture-rail .section-label {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 3px;
-    font-size: 8px;
-  }
-  .capture-rail .section-label span {
-    writing-mode: horizontal-tb;
-    letter-spacing: 0;
-    padding: 0;
-    border: 0;
-  }
-  .capture-rail .section-label b {
-    font-size: 8px;
+    display: none;
   }
   .hand-tray {
-    grid-template-columns: repeat(7, minmax(0, 40px));
-    gap: 3px;
+    grid-template-columns: repeat(7, minmax(0, 44px));
+    gap: 4px;
   }
   .hand-piece {
-    height: 29px;
+    height: 32px;
   }
   .hand-piece > span {
     padding-top: 3px;
-    font-size: 20px;
+    font-size: 21px;
   }
   .hand-piece b {
     right: -2px;
@@ -2492,58 +2640,155 @@ dialog::backdrop {
     font-size: 13px;
   }
   .board-actions {
-    gap: 8px;
-    padding: 0 8px;
+    width: 100%;
+    max-width: 330px;
+    gap: 7px 10px;
+    margin-inline: auto;
+    padding: 0 6px;
   }
   .board-actions button {
     flex: 1;
+    gap: 6px;
     min-width: 0;
-    padding: 10px 6px;
+    padding: 7px 4px;
     font-size: 12px;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
+  }
+  .board-actions button i {
+    width: 14px;
+    font-size: 12px;
   }
   .sub-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
   }
   .sub-actions button {
     min-width: 0;
-    padding: 8px 6px;
+    padding: 6px 4px;
+    font-size: 12px;
   }
+  .mode-picker {
+    gap: 8px;
+  }
+  .mode-picker button {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 8px 12px;
+    text-align: center;
+  }
+  .mode-seal {
+    width: 40px;
+    height: 40px;
+    font-size: 21px;
+  }
+  .mode-text b {
+    font-size: 16px;
+  }
+  .lobby-panel {
+    padding: 18px 14px;
+  }
+  .code-input {
+    font-size: 24px;
+    letter-spacing: 0.3em;
+  }
+  .join-row .primary {
+    padding-inline: 18px;
+  }
+  /* Home fills exactly one screen: the hero takes whatever height the menu
+     leaves, so every mode is reachable without scrolling. */
   #home-page {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "hero"
-      "command";
-    gap: 10px;
-    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    min-height: calc(100dvh - 98px);
   }
   .title-block {
-    height: 380px;
-    padding: 4% 0 0 2%;
+    flex: 1 1 0;
+    height: auto;
+    min-height: 180px;
+    padding: 3% 0 0 2%;
   }
   .title-block::before {
-    font-size: 250px;
+    font-size: min(250px, 34dvh);
   }
+  /* On short screens crop to the upper body instead of shrinking her. */
   .hero-art {
-    max-width: 74%;
+    width: min(74%, 300px);
+    height: 104%;
+    max-width: none;
+    aspect-ratio: auto;
+  }
+  .title-block .eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.45em;
   }
   .title-block h1 {
-    font-size: 44px;
+    font-size: clamp(32px, 5.4dvh, 44px);
   }
-  .player-chip .avatar,
+  .command {
+    gap: 10px;
+  }
+  .player-chip {
+    gap: 14px;
+    padding: 8px 14px;
+  }
+  .player-chip .avatar {
+    width: 46px;
+    height: 46px;
+    font-size: 19px;
+  }
+  .player-chip b {
+    font-size: 17px;
+  }
   .vs-player .avatar {
     width: 60px;
     height: 60px;
     font-size: 23px;
   }
   .menu-grid button {
-    padding: 16px 12px 16px 28px;
+    padding: 13px 12px 13px 28px;
+  }
+  .mode-list button {
+    padding-block: 13px;
   }
   .menu-grid b {
     font-size: 19px;
+  }
+  .home-links button {
+    padding: 2px;
+  }
+  .page-back {
+    margin-bottom: 8px;
+  }
+  .page-title {
+    margin-bottom: 18px;
+    padding-bottom: 12px;
+  }
+  .setup-grid {
+    gap: 18px;
+  }
+  .opponent-art {
+    min-height: 0;
+    height: clamp(88px, calc(100dvh - 570px), 170px);
+  }
+  .opponent-art img {
+    object-position: 50% 14%;
+  }
+  .opponent-art figcaption {
+    padding: 28px 16px 12px;
+  }
+  .choice {
+    margin-bottom: 14px;
+  }
+  .choice legend {
+    margin-bottom: 6px;
+  }
+  .local-versus {
+    padding: 16px 12px;
   }
   .choice span {
     min-height: 46px;
@@ -2560,7 +2805,7 @@ dialog::backdrop {
     padding: 18px 16px 26px;
   }
   .page-title .eyebrow {
-    font-size: 30px;
+    font-size: 26px;
   }
   .rules-pieces {
     grid-template-columns: 1fr;
