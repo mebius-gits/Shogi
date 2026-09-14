@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   Game,
   fromSFEN,
@@ -14,7 +15,7 @@ import {
   declaration,
   toUSI,
 } from "../../src/rules/engine.js";
-import { chooseMove } from "../../src/ai/ai.js";
+import { chooseMove, searchMoves } from "../../src/ai/ai.js";
 const piece = (type, side = 0, promoted = false) => ({ type, side, promoted });
 const position = (items = [], turn = 0) => {
   const p = { board: Array(81).fill(null), hands: emptyHands(), turn, ply: 1 };
@@ -246,4 +247,29 @@ test("Computer returns a legal move and sees a one-move mate", () => {
   const next = applyUnchecked(p, answer.move);
   assert.ok(inCheck(next));
   assert.equal(legalMoves(next).length, 0);
+});
+test("Search move generator matches the rules engine on the fixture positions", () => {
+  const fixtures = JSON.parse(
+    readFileSync(
+      new URL("../differential/differential-fixtures.json", import.meta.url),
+    ),
+  );
+  assert.equal(fixtures.length, 1736);
+  for (const f of fixtures)
+    assert.deepEqual(searchMoves(fromSFEN(f.sfen)).sort(), f.moves, f.sfen);
+});
+test("Computer solves a three-move mate", () => {
+  const p = fromSFEN("8k/9/7Rl/9/9/9/9/9/K8 b S 1");
+  const { move } = chooseMove(p, { depth: 5, timeMs: 3000 });
+  assert.equal(toUSI(move), "S*2b");
+  const next = applyUnchecked(p, move);
+  for (const reply of legalMoves(next)) {
+    const q = applyUnchecked(next, reply);
+    assert.ok(
+      legalMoves(q).some((m) => {
+        const mated = applyUnchecked(q, m);
+        return inCheck(mated) && !legalMoves(mated).length;
+      }),
+    );
+  }
 });
