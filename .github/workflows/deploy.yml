@@ -4,8 +4,11 @@ on:
   push:
   workflow_dispatch:
 
+# GitHub Actions 權限
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: github-pages
@@ -13,44 +16,64 @@ concurrency:
 
 jobs:
   build:
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # 允許：
+    # 1. default branch push
+    # 2. 手動執行 workflow
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+
     runs-on: ubuntu-latest
+
     steps:
+      # Checkout
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Node.js
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
-      # Unit tests and the static site use only checked-in files and Node built-ins.
+      # Unit tests
       - name: Run unit tests
         run: npm test
 
+      # GitHub Pages
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
+      # 建立靜態網站
       - name: Package static site
         run: |
           mkdir -p _site
           cp index.html _site/
           cp -R src assets vendor _site/
 
+      # 上傳 Pages artifact
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 
   deploy:
+    # 允許 default branch push 或手動部署所選分支
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+
     needs: build
     runs-on: ubuntu-latest
+
     permissions:
       pages: write
       id-token: write
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

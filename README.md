@@ -22,10 +22,12 @@ npm start
 
 1. 將本次變更推送並合併至 GitHub 儲存庫的**預設分支**。
 2. 在儲存庫 **Settings → Pages → Build and deployment → Source** 選擇 **GitHub Actions**。
-3. 在 **Actions → Deploy GitHub Pages → Run workflow** 選擇預設分支執行。之後每次推送到預設分支都會自動部署；其他分支會略過，手動執行也只允許預設分支部署。
+3. 在 **Actions → Deploy GitHub Pages → Run workflow** 選擇要部署的分支執行。之後每次推送到預設分支都會自動部署；其他分支的 push 會略過，但可手動部署。手動部署會更新同一個正式網站。
 4. 等待 workflow 成功，再開啟部署工作顯示的網址。此儲存庫未設定自訂網域時，預期網址為 `https://mebius-gits.github.io/Shogi/`。
 
 流程先執行 `npm test`，通過後將 `index.html`、`src/`、`assets/`、`vendor/` 打包成 Pages artifact，再部署到 `github-pages` 環境。遊戲使用相對路徑，可直接放在 `/Shogi/` 子目錄。
+
+若工作顯示 **Skipped**，請確認所選分支已包含最新 workflow，並使用 **Run workflow** 建立新執行；**Re-run all jobs** 會沿用原本的 commit 與事件。如果手動部署其他分支時出現環境分支限制錯誤，請到 **Settings → Environments → github-pages → Deployment branches and tags** 將該分支加入允許清單。若出現 **Get Pages site failed / Not Found**，請先確認上述 Pages 的 Source 設定。
 
 GitHub Pages 使用 HTTPS，連線對戰請使用 `wss://` broker（預設已是 WSS）。Pages 只託管遊戲檔案，MQTT 仍由外部 broker 提供。免費帳號請使用公開儲存庫；私人儲存庫的 Pages 支援取決於 GitHub 方案。詳細設定見 [GitHub 官方文件](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)。
 
