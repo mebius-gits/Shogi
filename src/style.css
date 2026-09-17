@@ -307,6 +307,11 @@ select {
 .side-bottom > .board-status {
   margin-top: auto;
 }
+/* Breathing room around the stacked actions; the free space above the
+   status card absorbs it. */
+.side-bottom > .board-actions {
+  margin: 8px 0 12px;
+}
 .play-center {
   position: relative;
   min-width: 0;
@@ -909,7 +914,7 @@ body[data-theme="spring"] .petals {
 .board-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   padding: 0 10px;
 }
 .board-actions button {
@@ -954,8 +959,8 @@ body[data-theme="spring"] .petals {
 .sub-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 4px;
+  gap: 18px;
+  margin-top: 6px;
 }
 .sub-actions button {
   justify-content: center;
@@ -2319,6 +2324,9 @@ dialog::backdrop {
   }
   .side-bottom > .board-status {
     margin-top: 4px;
+  }
+  .side-bottom > .board-actions {
+    margin: 0;
   }
   #seat-top {
     grid-area: gote;

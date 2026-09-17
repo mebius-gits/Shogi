@@ -10,33 +10,37 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // Rig layout in "palm space": the wrist is the origin, fingers point to -Z,
 // the back of the hand faces +Y and the thumb is on -X (a right hand).
+// A slender young woman's hand: narrow palm, long tapering fingers.
 const FINGERS = [
   // name, knuckle, phalanx lengths, radius, spread
-  ["Index", V(-0.27, 0.03, -0.88), [0.36, 0.22, 0.19], 0.079, 0.07],
-  ["Middle", V(-0.06, 0.035, -0.93), [0.39, 0.25, 0.2], 0.083, 0.01],
-  ["Ring", V(0.15, 0.025, -0.88), [0.37, 0.24, 0.19], 0.077, -0.05],
-  ["Little", V(0.33, 0.0, -0.78), [0.29, 0.18, 0.17], 0.066, -0.13],
+  ["Index", V(-0.205, 0.03, -0.84), [0.36, 0.24, 0.2], 0.06, 0.06],
+  ["Middle", V(-0.05, 0.035, -0.875), [0.4, 0.27, 0.21], 0.062, 0.0],
+  ["Ring", V(0.1, 0.025, -0.84), [0.37, 0.25, 0.2], 0.057, -0.07],
+  ["Little", V(0.235, 0.0, -0.75), [0.29, 0.19, 0.17], 0.05, -0.2],
 ];
 const METACARPAL_BASES = [
-  V(-0.16, 0.02, -0.12),
-  V(-0.05, 0.03, -0.1),
-  V(0.07, 0.02, -0.12),
-  V(0.18, 0.0, -0.14),
+  V(-0.12, 0.02, -0.12),
+  V(-0.04, 0.03, -0.1),
+  V(0.05, 0.02, -0.12),
+  V(0.13, 0.0, -0.14),
 ];
 const THUMB = {
-  base: V(-0.19, -0.07, -0.2),
+  base: V(-0.15, -0.06, -0.22),
   rotation: [-0.32, 0.78, 0.95], // pitch, yaw, roll (YXZ)
-  lengths: [0.42, 0.3, 0.25],
-  radii: [0.105, 0.098, 0.088],
+  lengths: [0.38, 0.28, 0.23],
+  radii: [0.07, 0.066, 0.061],
 };
+// Fraction of the radius at each end of the three finger phalanges.
+const FINGER_TAPER = [[1, 0.9], [0.88, 0.8], [0.78, 0.7]];
 // Joint curl (radians) for each bone: [relaxed, pinching the piece].
 // Pinching extends the index and middle fingers forward like tweezers while
-// the ring and little fingers fold softly, so the piece stays visible.
+// the ring and little fingers roll right into the palm. The hand only tilts
+// gently, so any looser curl would point them down into the board.
 const CURL = {
-  Index: [[0.2, 0.32, 0.16], [0.34, 0.42, 0.18]],
-  Middle: [[0.18, 0.32, 0.16], [0.3, 0.5, 0.24]],
-  Ring: [[0.28, 0.4, 0.2], [0.55, 0.8, 0.4]],
-  Little: [[0.36, 0.46, 0.22], [0.6, 0.86, 0.42]],
+  Index: [[0.18, 0.28, 0.14], [0.34, 0.42, 0.18]],
+  Middle: [[0.16, 0.28, 0.14], [0.2, 0.4, 0.2]],
+  Ring: [[0.24, 0.34, 0.18], [1.1, 1.5, 0.8]],
+  Little: [[0.26, 0.34, 0.18], [1.0, 1.4, 0.75]],
 };
 const THUMB_POSE = [
   // [x, y] per thumb bone, relaxed then pinching
@@ -45,8 +49,9 @@ const THUMB_POSE = [
 ];
 const WRIST_FLEX = [-0.16, -0.3];
 const FOREARM_PITCH = -0.12;
-// Where the fingertips meet, relative to the piece origin (unscaled units).
-const PINCH_TARGET = V(0, 0.135, 0.02);
+// Where the fingertips meet, relative to the piece origin (unscaled units):
+// high enough that the index and middle fingertips rest on the top face.
+const PINCH_TARGET = V(0, 0.205, 0.02);
 
 // ---- signed distance field ----------------------------------------------
 const tmp = new THREE.Vector3();
@@ -121,23 +126,28 @@ const far = (c, p, limit) =>
   (c.center.distanceTo(p) - c.radius) * c.scale > limit;
 
 function buildField(chains) {
-  const boxCenter = V(0.03, -0.035, -0.47),
-    boxHalf = V(0.27, 0.035, 0.32);
+  // Square to the arm and set toward the little finger, so the thumb-side
+  // edge runs straight from the wrist to the index knuckle. (Angled, its
+  // wrist corner jutted out and was left behind as a lump when the thumb
+  // swung in to pinch.)
+  const boxCenter = V(0.04, -0.03, -0.46),
+    boxHalf = V(0.18, 0.03, 0.3);
   const palm = [
     {
       bone: "palm",
-      d: (p) => roundBox(p, boxCenter, boxHalf, 0.105, -0.16),
+      d: (p) => roundBox(p, boxCenter, boxHalf, 0.08, 0),
       center: boxCenter,
-      radius: boxHalf.length() + 0.105,
+      radius: boxHalf.length() + 0.08,
       scale: 1,
     },
-    ...FINGERS.map(([, knuckle], i) =>
-      seg("palm", METACARPAL_BASES[i], knuckle, 0.07, 0.092),
+    ...FINGERS.map(([, knuckle, , radius], i) =>
+      seg("palm", METACARPAL_BASES[i], knuckle, 0.05, radius * 1.1),
     ),
-    blob("palm", V(-0.27, -0.1, -0.34), V(0.17, 0.1, 0.27)),
-    blob("palm", V(0.27, -0.09, -0.4), V(0.12, 0.085, 0.3)),
+    // The thenar pad sits on the palm side, inside the hand's outline.
+    blob("palm", V(-0.12, -0.09, -0.36), V(0.09, 0.065, 0.2)),
+    blob("palm", V(0.19, -0.07, -0.42), V(0.085, 0.065, 0.27)),
   ];
-  const forearm = seg("forearm", V(0, 0, -0.02), V(0, 0.02, 0.62), 0.245, 0.255, 0.68);
+  const forearm = seg("forearm", V(0, 0, -0.02), V(0, 0.02, 0.62), 0.19, 0.205, 0.7);
   const groups = chains.map((chain) => {
     const parts = chain.segments.map((s) =>
       seg(s.bone, s.a, s.b, s.r1, s.r2, s.flatten),
@@ -149,23 +159,23 @@ function buildField(chains) {
       ...parts.map((c) => c.center.distanceTo(center) + c.radius),
     );
     const scale = Math.min(...parts.map((c) => c.scale));
-    return { parts, center, radius, scale };
+    return { parts, center, radius, scale, blend: chain.blend };
   });
   const palmField = (p) => {
     let d = palm[0].d(p);
     for (let i = 1; i < palm.length; i++)
       if (!far(palm[i], p, d + 0.1)) d = smin(d, palm[i].d(p), 0.09);
-    return far(forearm, p, d + 0.17) ? d : smin(d, forearm.d(p), 0.16);
+    return far(forearm, p, d + 0.14) ? d : smin(d, forearm.d(p), 0.13);
   };
   const field = (p) => {
     const base = palmField(p);
     let d = base;
     for (const group of groups) {
-      if (far(group, p, base + 0.07)) continue;
+      if (far(group, p, base + group.blend)) continue;
       const parts = group.parts;
       let f = parts[0].d(p);
-      for (let i = 1; i < parts.length; i++) f = smin(f, parts[i].d(p), 0.03);
-      d = Math.min(d, smin(base, f, 0.07));
+      for (let i = 1; i < parts.length; i++) f = smin(f, parts[i].d(p), 0.012);
+      d = Math.min(d, smin(base, f, group.blend));
     }
     return d;
   };
@@ -390,46 +400,53 @@ function buildRig() {
   return { bones, order, joints, chains, nailSpots };
 }
 
+// Radius at the start and end of phalanx i, how far along the bone its
+// capsule reaches (the last one stops short so the round tip ends on time),
+// and how much it is squashed vertically.
+function phalanx(chain, i) {
+  const length = chain.lengths[i];
+  const r = chain.thumb ? THUMB.radii[i] : chain.radius;
+  const [r1, r2] = chain.thumb
+    ? [r, i === 2 ? r * 0.86 : THUMB.radii[i + 1]]
+    : FINGER_TAPER[i].map((f) => f * r);
+  const end = i === chain.bones.length - 1 ? length - r2 * 0.95 : length;
+  return { r1, r2, end, flatten: chain.thumb ? 0.9 : 0.84 };
+}
+
 // Segment endpoints (with radii) for every phalanx, measured in the bind pose.
 function chainSegments(chain, root) {
   const toRoot = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const world = (obj, offset = V(0, 0, 0)) =>
     offset.applyMatrix4(obj.matrixWorld).applyMatrix4(toRoot);
-  const segments = [];
-  chain.bones.forEach((bone, i) => {
-    const length = chain.lengths[i];
-    const r = chain.thumb ? THUMB.radii[i] : chain.radius;
-    const taper = chain.thumb
-      ? [r, i === 2 ? r * 0.86 : THUMB.radii[i + 1]]
-      : [[1, 0.93], [0.9, 0.84], [0.82, 0.76]][i].map((f) => f * r);
-    const a = world(bone);
-    const end = i === chain.bones.length - 1 ? length - taper[1] * 0.95 : length;
-    const b = world(bone, V(0, 0, -end));
-    segments.push({
+  return chain.bones.map((bone, i) => {
+    const { r1, r2, end, flatten } = phalanx(chain, i);
+    return {
       bone: bone.name,
-      a,
-      b,
-      r1: taper[0],
-      r2: taper[1],
-      flatten: chain.thumb ? 0.92 : 0.86,
-    });
+      a: world(bone),
+      b: world(bone, V(0, 0, -end)),
+      r1,
+      r2,
+      flatten,
+    };
   });
-  return segments;
 }
 
 let cachedGeometry = null;
 function handGeometry(rig) {
   if (cachedGeometry) return cachedGeometry;
   rig.bones.forearm.updateMatrixWorld(true);
+  // The thumb melts into the palm over a wider band, like the fleshy web at
+  // its root; a narrow band there leaves a pinched neck.
   const chains = rig.chains.map((chain) => ({
     segments: chainSegments(chain, rig.bones.forearm),
+    blend: chain.thumb ? 0.1 : 0.05,
   }));
   const { field, components } = buildField(chains);
   const bounds = new THREE.Box3(V(-0.5, -0.3, -1.0), V(0.5, 0.2, 0.62));
   for (const chain of chains)
     for (const s of chain.segments) bounds.expandByPoint(s.a).expandByPoint(s.b);
   bounds.expandByScalar(0.14);
-  const surface = polygonize(field, bounds.min, bounds.max, 0.019);
+  const surface = polygonize(field, bounds.min, bounds.max, 0.016);
   const boneIndex = new Map(rig.order.map((b, i) => [b.name, i]));
   boneIndex.set("palm", 1);
   boneIndex.set("forearm", 0);
@@ -437,9 +454,9 @@ function handGeometry(rig) {
   const skinIndex = new Uint16Array(count * 4),
     skinWeight = new Float32Array(count * 4),
     colors = new Float32Array(count * 3);
-  const base = new THREE.Color("#e9a98d"),
-    blush = new THREE.Color("#e0857a"),
-    light = new THREE.Color("#f6cdb9"),
+  const base = new THREE.Color("#f2c3ad"),
+    blush = new THREE.Color("#ee9c98"),
+    light = new THREE.Color("#fbdccd"),
     color = new THREE.Color();
   const joints = [],
     tips = [];
@@ -479,7 +496,9 @@ function handGeometry(rig) {
     for (let k = 0; k < 4; k++) skinWeight[n * 4 + k] /= sum;
     let pink = 0;
     for (const j of joints) pink += 0.4 * Math.exp(-p.distanceToSquared(j) / 0.0045);
-    for (const t of tips) pink += 0.75 * Math.exp(-p.distanceToSquared(t) / 0.012);
+    // Fingertip pads blush; the backs stay paler so the nails stand out.
+    const tipBlush = surface.normals[n * 3 + 1] > 0.35 ? 0.3 : 0.75;
+    for (const t of tips) pink += tipBlush * Math.exp(-p.distanceToSquared(t) / 0.012);
     color.copy(base).lerp(blush, Math.min(pink, 0.85));
     if (p.y < -0.06 && p.z > -0.95) color.lerp(light, 0.35);
     color.toArray(colors, n * 3);
@@ -543,51 +562,26 @@ function kimonoTexture(side) {
   return map;
 }
 
-function addSleeve(parent, side) {
-  const cuff = new THREE.MeshStandardMaterial({ color: "#f3ebdf", roughness: 0.9 });
-  const trim = new THREE.MeshStandardMaterial({ color: "#a7687c", roughness: 0.76 });
-  function ring(z, length, material, radius) {
-    const m = new THREE.Mesh(
-      new THREE.CylinderGeometry(radius, radius * 1.05, length, 40, 1, true),
-      material,
-    );
-    m.material.side = THREE.DoubleSide;
-    m.rotation.x = Math.PI / 2;
-    m.scale.z = 0.72;
-    m.position.set(0, 0.01, z);
-    m.castShadow = true;
-    parent.add(m);
-  }
-  ring(0.36, 0.3, cuff, 0.276);
-  ring(0.22, 0.035, trim, 0.282);
-  const silk = new THREE.MeshStandardMaterial({
-    color: "#ffffff",
-    map: kimonoTexture(side),
-    roughness: 0.85,
-    side: THREE.DoubleSide,
-  });
+// Per side: the rolled lining edge at the cuff (fuki), the lining seen inside
+// the sleeve and the nagajuban sleeve that peeks out around the wrist.
+const SLEEVE_TRIM = [
+  { rim: "#c35c79", lining: "#d98799", juban: "#f6c9d3" },
+  { rim: "#d3b06a", lining: "#5a5283", juban: "#f1d6e1" },
+];
+
+// Rings of around + 1 points (the seam repeats), each with a v texture
+// coordinate, stitched into one strip of quads.
+function loft(rings, around) {
   const vertices = [],
     uv = [],
-    indices = [],
-    sections = 28,
-    around = 40;
-  for (let j = 0; j <= sections; j++) {
-    const t = j / sections,
-      z = 0.44 + t * 7;
-    const width = 0.3 + Math.pow(t, 0.66) * 1.2,
-      depth = 0.22 + Math.pow(t, 0.75) * 0.7;
-    for (let k = 0; k <= around; k++) {
-      const angle = (k / around) * Math.PI * 2,
-        fold = Math.sin(angle * 7 + t * 3) * 0.027 * Math.sin(Math.PI * t);
-      vertices.push(
-        Math.cos(angle) * (width + fold),
-        0.01 + t * 0.55 + Math.sin(angle) * (depth + fold),
-        z,
-      );
-      uv.push(k / around, t);
-    }
-  }
-  for (let j = 0; j < sections; j++)
+    indices = [];
+  rings.forEach(({ points, v }) =>
+    points.forEach((p, k) => {
+      vertices.push(p.x, p.y, p.z);
+      uv.push(k / around, v);
+    }),
+  );
+  for (let j = 0; j < rings.length - 1; j++)
     for (let k = 0; k < around; k++) {
       const a = j * (around + 1) + k,
         b = a + around + 1;
@@ -598,30 +592,166 @@ function addSleeve(parent, side) {
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
-  const sleeve = new THREE.Mesh(geometry, silk);
-  sleeve.name = "SakuraKimonoSleeve";
-  sleeve.castShadow = sleeve.receiveShadow = true;
-  parent.add(sleeve);
+  return geometry;
+}
+
+// A furisode sleeve in forearm space (+Z runs up the arm). The wrist leaves
+// through a wide, loose sleeve mouth (sode-guchi): the cloth rests on top of
+// the arm and the rest of the opening sags open below it, showing the lining.
+// Below the mouth the front is sewn shut and the tamoto hangs as a soft bag.
+function addSleeve(parent, side) {
+  const trim = SLEEVE_TRIM[side];
+  const around = 48,
+    sections = 30;
+  const angles = Array.from({ length: around + 1 }, (_, k) => (k / around) * Math.PI * 2);
+  // The front edge hangs plumb, so in the (downward-pitched) arm's frame its
+  // bottom sits a little further forward than its top.
+  const frontZ = (sin) => 0.22 + 0.05 * sin;
+  // A drop shape around centre height cy: narrow on top, where the cloth
+  // rests on the arm, and fuller below. `hang` pinches the lower half in, as
+  // the two layers of a sleeve fall together.
+  const drape = (a, cy, up, down, half, hang) => {
+    const cos = Math.cos(a),
+      sin = Math.sin(a);
+    const narrow = sin > 0 ? 1 - 0.3 * sin : 1 - hang * sin * sin;
+    return [cos * half * narrow, cy + sin * (sin > 0 ? up : down)];
+  };
+  const mouth = (a) => {
+    const w = 1 + 0.02 * Math.sin(a * 5 + 1);
+    const [x, y] = drape(a, -0.1, 0.3 * w, 0.62 * w, 0.34 * w, 0);
+    return V(x, y, frontZ(Math.sin(a)));
+  };
+  const outline = (t, a) => {
+    // The tamoto drops to full depth just behind the cuff (a rounded bottom
+    // corner) instead of widening slowly like a cone.
+    // At the cuff the sleeve is only a cloth's width outside the mouth.
+    const half = 0.37 + Math.pow(t, 0.66) * 0.9,
+      up = 0.33 + Math.pow(t, 0.75) * 0.43,
+      down = 0.72 + 0.22 * (1 - Math.exp(-t * 18)) + t * 0.3,
+      fold =
+        Math.sin(a * 7 + t * 3) * 0.03 * Math.min(1, t * 5) +
+        Math.sin(a * 4 + t * 6) * 0.035 * Math.min(1, t * 8);
+    const [x, y] = drape(
+      a,
+      -0.1 + t * 0.55,
+      up + fold,
+      down + fold,
+      half + fold,
+      0.7 * Math.min(1, t * 6),
+    );
+    return V(x, y, frontZ(Math.sin(a)) + t * 7);
+  };
+  // Front panel from the mouth to the sleeve edge, then the sleeve itself
+  // (rings bunch up near the cuff, where the shape changes fastest).
+  const front = loft(
+    [
+      { points: angles.map(mouth), v: 0 },
+      { points: angles.map((a) => outline(0, a)), v: 0.02 },
+    ],
+    around,
+  );
+  const body = loft(
+    Array.from({ length: sections + 1 }, (_, j) => {
+      const t = Math.pow(j / sections, 1.6);
+      return { points: angles.map((a) => outline(t, a)), v: t };
+    }),
+    around,
+  );
+  const silk = new THREE.MeshStandardMaterial({
+    color: "#ffffff",
+    map: kimonoTexture(side),
+    roughness: 0.85,
+  });
+  const lining = new THREE.MeshStandardMaterial({
+    color: trim.lining,
+    roughness: 0.9,
+    side: THREE.BackSide,
+  });
+  for (const geometry of [front, body]) {
+    const outer = new THREE.Mesh(geometry, silk);
+    outer.name = "SakuraKimonoSleeve";
+    outer.castShadow = outer.receiveShadow = true;
+    parent.add(outer);
+    parent.add(new THREE.Mesh(geometry, lining));
+  }
+  const satin = (color) =>
+    new THREE.MeshPhysicalMaterial({
+      color,
+      roughness: 0.62,
+      sheen: 0.6,
+      sheenColor: new THREE.Color("#ffffff"),
+      side: THREE.DoubleSide,
+    });
+  const rim = new THREE.Mesh(
+    new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3(angles.slice(0, -1).map(mouth), true),
+      96,
+      0.018,
+      8,
+      true,
+    ),
+    satin(trim.rim),
+  );
+  rim.name = "SleeveMouth";
+  rim.castShadow = true;
+  parent.add(rim);
+  // The nagajuban sleeve: an inner layer, just as loose, whose edge shows a
+  // little past the cuff.
+  const jubanFront = 0.17;
+  const jubanEdge = (a, z) => {
+    const [x, y] = drape(a, -0.06, 0.24, 0.5, 0.29, 0);
+    return V(x, y, z + 0.03 * Math.sin(a));
+  };
+  const juban = new THREE.Mesh(
+    loft(
+      [0, 0.3, 1].map((u) => ({
+        points: angles.map((a) =>
+          jubanEdge(a, jubanFront + u * 1.1).multiply(V(1 + 0.12 * u, 1 + 0.12 * u, 1)),
+        ),
+        v: u,
+      })),
+      around,
+    ),
+    satin(trim.juban),
+  );
+  juban.name = "Nagajuban";
+  juban.castShadow = true;
+  parent.add(juban);
+  const jubanRim = new THREE.Mesh(
+    new THREE.TubeGeometry(
+      new THREE.CatmullRomCurve3(angles.slice(0, -1).map((a) => jubanEdge(a, jubanFront)), true),
+      72,
+      0.012,
+      6,
+      true,
+    ),
+    juban.material,
+  );
+  parent.add(jubanRim);
 }
 
 function addNails(rig) {
   const nail = new THREE.MeshPhysicalMaterial({
-    color: "#f8d9d1",
-    roughness: 0.32,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.3,
+    color: "#f7c4cc",
+    roughness: 0.28,
+    clearcoat: 0.8,
+    clearcoatRoughness: 0.2,
   });
   const shape = new THREE.SphereGeometry(1, 20, 12);
+  // Almond nails lie on the back of the last phalanx and end before the
+  // round fingertip curls away, so they never poke out of the skin.
   for (const chain of rig.nailSpots) {
-    const bone = chain.bones.at(-1);
-    const length = chain.lengths.at(-1);
-    const r = chain.thumb ? THUMB.radii[2] * 0.93 : chain.radius * 0.79;
-    const flatten = chain.thumb ? 0.92 : 0.86;
+    const i = chain.bones.length - 1;
+    const bone = chain.bones[i];
+    const { r1, r2, end, flatten } = phalanx(chain, i);
+    const half = chain.lengths[i] * 0.28;
+    const z = end + r2 * 0.55 - half;
+    const r = r1 + (r2 - r1) * Math.min(z / end, 1);
     const m = new THREE.Mesh(shape, nail);
     m.name = bone.name.replace(/Joint\d$/, "Nail");
-    m.position.set(0, r * flatten - r * 0.24, -length * 0.62);
-    m.scale.set(r * 0.72, r * 0.34, length * 0.38);
-    m.rotation.x = -0.08;
+    m.position.set(0, r * flatten - r * 0.22, -z);
+    m.scale.set(r * 0.7, r * 0.34, half);
+    m.rotation.x = -0.06;
     m.castShadow = true;
     bone.add(m);
   }

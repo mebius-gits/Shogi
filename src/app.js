@@ -16,7 +16,13 @@ const $ = (s, root = document) => root.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const STORE_KEY = "sakurama-shogi-v2";
 const CPU = { name: "花咲 小春", avatar: "koharu" };
-const LEVELS = ["", "入門", "初級", "中級"];
+// Keys are the saved radio values; 2 was the retired 初級.
+const LEVELS = {
+  1: { name: "入門", search: { depth: 1, timeMs: 200, quiesce: false } },
+  3: { name: "中級", search: { depth: 3, timeMs: 800 } },
+  4: { name: "高級", search: { depth: 32, timeMs: 3000 } },
+};
+const HINT = { depth: 32, timeMs: 1500 };
 const TIMES = { 0: [0, 0], "300:10": [300, 10], "600:30": [600, 30] };
 const PEER_GRACE = 60000;
 
@@ -47,7 +53,7 @@ let store = {
   },
   profile: { name: "旅人", avatar: "" },
   broker: DEFAULT_BROKER,
-  cpu: { level: "2", side: "0", time: "0" },
+  cpu: { level: "3", side: "0", time: "0" },
   local: { name: "對手", time: "0" },
   room: { time: "300:10", side: "random" },
   match: { time: "300:10" },
@@ -81,7 +87,7 @@ function loadStore() {
     if (/^wss?:\/\/\S+$/.test(data.broker || "")) store.broker = data.broker;
     const times = Object.keys(TIMES);
     store.cpu = {
-      level: pick(data.cpu?.level, ["1", "2", "3"], "2"),
+      level: pick(data.cpu?.level, Object.keys(LEVELS), "3"),
       side: pick(data.cpu?.side, ["0", "1", "random"], "0"),
       time: pick(data.cpu?.time, times, "0"),
     };
@@ -455,7 +461,7 @@ function status(title, detail, symbol = "☗") {
 }
 function playerNote(side) {
   if (session?.mode === "ai" && side !== session.mySide)
-    return "CPU · " + LEVELS[session.level];
+    return "CPU · " + LEVELS[session.level].name;
   if (online()) return side === session.mySide ? "YOU" : "ONLINE";
   return "";
 }
@@ -680,8 +686,8 @@ function requestSearch(kind) {
     id,
     position: game.position,
     options: {
-      depth: kind === "hint" ? 3 : session.level,
-      timeMs: kind === "hint" ? 1400 : [0, 200, 750, 1700][session.level],
+      ...(kind === "hint" ? HINT : LEVELS[session.level].search),
+      history: game.history.map((h) => h.before),
     },
   });
 }
